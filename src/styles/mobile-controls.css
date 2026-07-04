@@ -17,6 +17,10 @@ html {
     -webkit-tap-highlight-color: transparent;
 }
 
+.mobile-controls.is-ready {
+    display: flex;
+}
+
 .mobile-controls.is-hidden {
     display: none !important;
 }

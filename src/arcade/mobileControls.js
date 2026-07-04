@@ -1,9 +1,11 @@
 (function () {
     const activeControls = [];
     const touchQuery = "(pointer: coarse), (hover: none), (max-width: 900px)";
+    const supportsPointer = "PointerEvent" in window;
 
     function shouldShowControls(options) {
         if (options && options.force) return true;
+        if (new URLSearchParams(window.location.search).has("mobileDebug")) return true;
         return window.matchMedia(touchQuery).matches || navigator.maxTouchPoints > 0;
     }
 
@@ -16,7 +18,7 @@
     function createRoot(className, options) {
         if (!shouldShowControls(options)) return null;
         const root = document.createElement("div");
-        root.className = `mobile-controls ${className || ""}`.trim();
+        root.className = `mobile-controls is-ready ${className || ""}`.trim();
         root.setAttribute("aria-label", "Touch controls");
         preventTouchScroll(root);
         document.body.appendChild(root);
@@ -44,31 +46,51 @@
     }
 
     function bindHold(button, onDown, onUp) {
+        let isDown = false;
+
+        const start = event => {
+            event.preventDefault();
+            if (isDown) return;
+            isDown = true;
+            button.classList.add("is-pressed");
+            onDown();
+        };
+
         const release = event => {
             event.preventDefault();
+            if (!isDown) return;
+            isDown = false;
             button.classList.remove("is-pressed");
             if (onUp) onUp();
         };
 
-        button.addEventListener("pointerdown", event => {
-            event.preventDefault();
-            button.setPointerCapture(event.pointerId);
-            button.classList.add("is-pressed");
-            onDown();
-        });
-        button.addEventListener("pointerup", release);
-        button.addEventListener("pointercancel", release);
-        button.addEventListener("lostpointercapture", () => {
-            button.classList.remove("is-pressed");
-            if (onUp) onUp();
-        });
+        if (supportsPointer) {
+            button.addEventListener("pointerdown", event => {
+                button.setPointerCapture(event.pointerId);
+                start(event);
+            });
+            button.addEventListener("pointerup", release);
+            button.addEventListener("pointercancel", release);
+            button.addEventListener("lostpointercapture", release);
+        }
+
+        button.addEventListener("touchstart", start, { passive: false });
+        button.addEventListener("touchend", release, { passive: false });
+        button.addEventListener("touchcancel", release, { passive: false });
+
+        if (!supportsPointer) {
+            button.addEventListener("mousedown", start);
+            button.addEventListener("mouseup", release);
+            button.addEventListener("mouseleave", release);
+        }
     }
 
     function createButton(label, className, options) {
         const button = document.createElement("button");
+        const fallbackLabels = { up: "UP", left: "LEFT", right: "RIGHT", down: "DOWN" };
         button.type = "button";
         button.className = `mobile-control-btn ${className || ""}`.trim();
-        button.textContent = label;
+        button.textContent = fallbackLabels[className] || label;
         button.setAttribute("aria-label", options && options.ariaLabel ? options.ariaLabel : label);
         return button;
     }
@@ -87,13 +109,20 @@
     }
 
     function getCanvasPoint(canvas, event) {
+        const clientPoint = getClientPoint(event);
         const rect = canvas.getBoundingClientRect();
         const scaleX = canvas.width / rect.width;
         const scaleY = canvas.height / rect.height;
         return {
-            x: (event.clientX - rect.left) * scaleX,
-            y: (event.clientY - rect.top) * scaleY
+            x: (clientPoint.clientX - rect.left) * scaleX,
+            y: (clientPoint.clientY - rect.top) * scaleY
         };
+    }
+
+    function getClientPoint(event) {
+        if (event.touches && event.touches.length) return event.touches[0];
+        if (event.changedTouches && event.changedTouches.length) return event.changedTouches[0];
+        return event;
     }
 
     function createDPad(options) {
@@ -155,11 +184,17 @@
         };
 
         canvas.classList.add("mobile-touch-surface");
-        canvas.addEventListener("pointerdown", handler);
-        canvas.addEventListener("pointermove", handler);
+        if (supportsPointer) {
+            canvas.addEventListener("pointerdown", handler);
+            canvas.addEventListener("pointermove", handler);
+        }
+        canvas.addEventListener("touchstart", handler, { passive: false });
+        canvas.addEventListener("touchmove", handler, { passive: false });
         activeControls.push({ destroy: () => {
             canvas.removeEventListener("pointerdown", handler);
             canvas.removeEventListener("pointermove", handler);
+            canvas.removeEventListener("touchstart", handler);
+            canvas.removeEventListener("touchmove", handler);
         }});
         return canvas;
     }
@@ -177,11 +212,17 @@
         };
 
         canvas.classList.add("mobile-touch-surface");
-        canvas.addEventListener("pointerdown", handler);
-        canvas.addEventListener("pointermove", handler);
+        if (supportsPointer) {
+            canvas.addEventListener("pointerdown", handler);
+            canvas.addEventListener("pointermove", handler);
+        }
+        canvas.addEventListener("touchstart", handler, { passive: false });
+        canvas.addEventListener("touchmove", handler, { passive: false });
         activeControls.push({ destroy: () => {
             canvas.removeEventListener("pointerdown", handler);
             canvas.removeEventListener("pointermove", handler);
+            canvas.removeEventListener("touchstart", handler);
+            canvas.removeEventListener("touchmove", handler);
         }});
         return canvas;
     }
@@ -206,12 +247,13 @@
 
         const move = event => {
             event.preventDefault();
+            const clientPoint = getClientPoint(event);
             const rect = base.getBoundingClientRect();
             const centerX = rect.left + rect.width / 2;
             const centerY = rect.top + rect.height / 2;
             const max = rect.width * 0.36;
-            let dx = event.clientX - centerX;
-            let dy = event.clientY - centerY;
+            let dx = clientPoint.clientX - centerX;
+            let dy = clientPoint.clientY - centerY;
             const dist = Math.hypot(dx, dy);
             if (dist > max) {
                 dx = dx / dist * max;
@@ -221,15 +263,21 @@
             if (settings.onMove) settings.onMove(dx / max, dy / max);
         };
 
-        base.addEventListener("pointerdown", event => {
-            base.setPointerCapture(event.pointerId);
-            move(event);
-        });
-        base.addEventListener("pointermove", event => {
-            if (event.buttons) move(event);
-        });
-        base.addEventListener("pointerup", reset);
-        base.addEventListener("pointercancel", reset);
+        if (supportsPointer) {
+            base.addEventListener("pointerdown", event => {
+                base.setPointerCapture(event.pointerId);
+                move(event);
+            });
+            base.addEventListener("pointermove", event => {
+                if (event.buttons) move(event);
+            });
+            base.addEventListener("pointerup", reset);
+            base.addEventListener("pointercancel", reset);
+        }
+        base.addEventListener("touchstart", move, { passive: false });
+        base.addEventListener("touchmove", move, { passive: false });
+        base.addEventListener("touchend", reset, { passive: false });
+        base.addEventListener("touchcancel", reset, { passive: false });
 
         wireVisibility(root, settings);
         return root;
@@ -245,7 +293,10 @@
 
     document.addEventListener("gesturestart", event => event.preventDefault());
     document.addEventListener("touchmove", event => {
-        if (event.target.closest(".mobile-controls") || event.target.classList.contains("mobile-touch-surface")) {
+        const target = event.target;
+        const inMobileControls = target && target.closest && target.closest(".mobile-controls");
+        const isTouchSurface = target && target.classList && target.classList.contains("mobile-touch-surface");
+        if (inMobileControls || isTouchSurface) {
             event.preventDefault();
         }
     }, { passive: false });
