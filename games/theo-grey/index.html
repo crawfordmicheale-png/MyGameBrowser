@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Theo & Grey: Backyard Treasure Hunt</title>
+    <link rel="stylesheet" href="../../src/styles/base.css">
+    <link rel="stylesheet" href="../../src/styles/game-shell.css">
+    <link rel="stylesheet" href="../../src/styles/mobile-controls.css">
+    <style>
+        .game-page {
+            background: radial-gradient(circle at top, #2f5f46 0%, #163326 52%, #0f172a 100%);
+        }
+
+        .game-page .header,
+        .game-page .arcade-controls,
+        #yard-status {
+            width: 800px;
+        }
+
+        .game-page .header {
+            font-size: 1.05rem;
+            gap: 16px;
+        }
+
+        #yard-status {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 10px;
+            color: #f8fafc;
+            font-weight: bold;
+        }
+
+        .cozy-stat {
+            color: #fde68a;
+            text-shadow: 0 0 10px rgba(253, 230, 138, 0.75);
+        }
+
+        .game-page canvas {
+            background: #5fb96b;
+            border-color: #fde68a;
+            box-shadow: 0 0 26px rgba(253, 230, 138, 0.35);
+        }
+
+        .cozy-overlay {
+            width: min(430px, 90vw);
+            border: 2px solid #fde68a;
+            box-shadow: 0 0 24px rgba(253, 230, 138, 0.35);
+        }
+
+        .cozy-overlay h2 {
+            color: #fde68a;
+            text-shadow: 0 0 12px rgba(253, 230, 138, 0.8);
+            font-size: 2rem;
+        }
+
+        .cozy-copy,
+        #round-summary {
+            color: #dbeafe;
+            line-height: 1.55;
+            margin-bottom: 1rem;
+            white-space: pre-line;
+        }
+
+        #helper-message {
+            position: absolute;
+            left: 16px;
+            top: 16px;
+            max-width: 280px;
+            padding: 8px 12px;
+            border: 1px solid rgba(253, 230, 138, 0.85);
+            border-radius: 8px;
+            background: rgba(15, 23, 42, 0.7);
+            color: #f8fafc;
+            font-weight: bold;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            pointer-events: none;
+        }
+
+        #helper-message.visible {
+            opacity: 1;
+        }
+
+        @media (max-width: 900px), (pointer: coarse), (hover: none) {
+            .game-page .header,
+            .game-page .arcade-controls,
+            #yard-status {
+                width: min(96vw, 800px);
+            }
+
+            .game-page .header,
+            #yard-status {
+                flex-wrap: wrap;
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body class="game-page">
+    <div class="header">
+        <span>THEO & GREY: BACKYARD TREASURE HUNT</span>
+        <span>BEST: <span id="best-display" class="cozy-stat">0</span></span>
+    </div>
+
+    <div id="yard-status">
+        <span>TIME: <span id="time-display" class="cozy-stat">1:00</span></span>
+        <span>SCORE: <span id="score-display" class="cozy-stat">0</span></span>
+        <span>TREASURES: <span id="treasure-display" class="cozy-stat">0</span></span>
+        <span>BONUS: <span id="bonus-display" class="cozy-stat">0</span></span>
+    </div>
+
+    <div id="game-container">
+        <canvas id="gameCanvas" width="800" height="520"></canvas>
+        <div id="helper-message"></div>
+
+        <div id="start-screen" class="screen-overlay cozy-overlay">
+            <h2>Backyard Treasure Hunt</h2>
+            <div class="cozy-copy">Help Theo collect stars, books, toy cars, lantern lights, and map pieces before sunset.
+
+Bushes block the way. Mud puddles slow Theo down. Biscuit bones are bonus treasures.</div>
+            <button onclick="startRound()">START HUNT</button>
+            <button class="lobby-btn" onclick="window.location.href='../../index.html'">BACK TO LOBBY</button>
+        </div>
+
+        <div id="round-complete" class="screen-overlay cozy-overlay">
+            <h2>Sunset Snacks!</h2>
+            <div id="round-summary"></div>
+            <button onclick="startRound()">PLAY AGAIN</button>
+            <button class="lobby-btn" onclick="window.location.href='../../index.html'">BACK TO LOBBY</button>
+        </div>
+    </div>
+
+    <script src="../../src/arcade/storage.js"></script>
+    <script src="../../src/arcade/controls.js"></script>
+    <script src="../../src/arcade/mobileControls.js"></script>
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const startScreen = document.getElementById("start-screen");
+        const roundComplete = document.getElementById("round-complete");
+        const roundSummary = document.getElementById("round-summary");
+        const helperMessage = document.getElementById("helper-message");
+        const timeDisplay = document.getElementById("time-display");
+        const scoreDisplay = document.getElementById("score-display");
+        const treasureDisplay = document.getElementById("treasure-display");
+        const bonusDisplay = document.getElementById("bonus-display");
+        const bestDisplay = document.getElementById("best-display");
+
+        const roundSeconds = 60;
+        const keys = {};
+        const treasures = [];
+        const obstacles = [];
+        const effects = [];
+        const fireflies = [];
+        const helperMessages = [
+            "Grey says: check by the lanterns!",
+            "Biscuit found a clue!",
+            "Grey cheers: go Theo go!",
+            "Biscuit sniffed out a bonus!"
+        ];
+        const treasureTypes = [
+            { kind: "star", label: "Star", points: 10, bonus: false, color: "#fde047" },
+            { kind: "book", label: "Book", points: 15, bonus: false, color: "#60a5fa" },
+            { kind: "car", label: "Toy Car", points: 20, bonus: false, color: "#f97316" },
+            { kind: "lantern", label: "Lantern Light", points: 25, bonus: false, color: "#facc15" },
+            { kind: "map", label: "Map Piece", points: 30, bonus: false, color: "#f9a8d4" },
+            { kind: "bone", label: "Biscuit Bone", points: 50, bonus: true, color: "#f8fafc" }
+        ];
+
+        let theo;
+        let grey;
+        let biscuit;
+        let score = 0;
+        let collected = 0;
+        let bonusCollected = 0;
+        let remaining = roundSeconds;
+        let roundActive = false;
+        let isPaused = false;
+        let animationId;
+        let lastTime = 0;
+        let helperTimer = 0;
+
+        document.addEventListener("keydown", event => keys[event.code] = true);
+        document.addEventListener("keyup", event => keys[event.code] = false);
+
+        function showStartScreen() {
+            roundActive = false;
+            isPaused = false;
+            startScreen.style.display = "block";
+            roundComplete.style.display = "none";
+            bestDisplay.innerText = window.ArcadeStorage.getHighScore("theo-grey");
+            setupRound();
+            draw();
+        }
+
+        function setupRound() {
+            theo = { x: 90, y: 420, radius: 16, speed: 4.1, color: "#38bdf8" };
+            grey = { x: 730, y: 88, radius: 15 };
+            biscuit = { x: 680, y: 440, radius: 12, pulse: 0 };
+            score = 0;
+            collected = 0;
+            bonusCollected = 0;
+            remaining = roundSeconds;
+            helperTimer = 0;
+            treasures.length = 0;
+            obstacles.length = 0;
+            effects.length = 0;
+            fireflies.length = 0;
+            keys.ArrowLeft = false;
+            keys.ArrowRight = false;
+            keys.ArrowUp = false;
+            keys.ArrowDown = false;
+
+            createObstacles();
+            createTreasures();
+            createFireflies();
+            updateHud();
+            helperMessage.classList.remove("visible");
+        }
+
+        function startRound() {
+            if (animationId) cancelAnimationFrame(animationId);
+            setupRound();
+            roundActive = true;
+            isPaused = false;
+            startScreen.style.display = "none";
+            roundComplete.style.display = "none";
+            lastTime = performance.now();
+            animationId = requestAnimationFrame(gameLoop);
+        }
+
+        function createObstacles() {
+            const fixed = [
+                { type: "bush", x: 185, y: 145, w: 82, h: 54 },
+                { type: "bush", x: 540, y: 118, w: 92, h: 58 },
+                { type: "bush", x: 360, y: 330, w: 96, h: 58 },
+                { type: "mud", x: 150, y: 300, w: 118, h: 56 },
+                { type: "mud", x: 575, y: 300, w: 120, h: 60 }
+            ];
+            fixed.forEach(item => obstacles.push(item));
+
+            for (let i = 0; i < 3; i++) {
+                obstacles.push({
+                    type: "blocks",
+                    x: randomRange(110, 650),
+                    y: randomRange(95, 390),
+                    w: 46,
+                    h: 42
+                });
+            }
+        }
+
+        function createTreasures() {
+            for (let i = 0; i < 34; i++) {
+                const type = treasureTypes[i % (treasureTypes.length - 1)];
+                treasures.push(createTreasure(type));
+            }
+
+            for (let i = 0; i < 5; i++) {
+                treasures.push(createTreasure(treasureTypes[treasureTypes.length - 1]));
+            }
+        }
+
+        function createTreasure(type) {
+            let item;
+            do {
+                item = {
+                    ...type,
+                    x: randomRange(48, canvas.width - 48),
+                    y: randomRange(60, canvas.height - 48),
+                    radius: type.bonus ? 12 : 10,
+                    collected: false,
+                    bob: Math.random() * Math.PI * 2
+                };
+            } while (isBlockedCircle(item.x, item.y, item.radius + 8) || getDist(item.x, item.y, theo.x, theo.y) < 90);
+            return item;
+        }
+
+        function createFireflies() {
+            for (let i = 0; i < 24; i++) {
+                fireflies.push({
+                    x: randomRange(20, canvas.width - 20),
+                    y: randomRange(20, canvas.height - 20),
+                    vx: randomRange(-0.25, 0.25),
+                    vy: randomRange(-0.18, 0.18),
+                    glow: Math.random() * Math.PI * 2
+                });
+            }
+        }
+
+        function randomRange(min, max) {
+            return min + Math.random() * (max - min);
+        }
+
+        function getDist(x1, y1, x2, y2) {
+            return Math.hypot(x2 - x1, y2 - y1);
+        }
+
+        function updateHud() {
+            const seconds = Math.max(0, Math.ceil(remaining));
+            timeDisplay.innerText = `0:${seconds < 10 ? "0" : ""}${seconds}`;
+            scoreDisplay.innerText = score;
+            treasureDisplay.innerText = collected;
+            bonusDisplay.innerText = bonusCollected;
+        }
+
+        function gameLoop(timestamp) {
+            const dt = Math.min(2, (timestamp - lastTime) / 16.67);
+            lastTime = timestamp;
+            update(dt);
+            draw();
+            if (roundActive) animationId = requestAnimationFrame(gameLoop);
+        }
+
+        function update(dt) {
+            if (!roundActive || isPaused) return;
+            remaining -= dt / 60;
+            if (remaining <= 0) {
+                finishRound();
+                return;
+            }
+
+            moveTheo(dt);
+            collectTreasures();
+            updateEffects(dt);
+            updateFireflies(dt);
+            updateHelper(dt);
+            updateHud();
+        }
+
+        function moveTheo(dt) {
+            let dx = 0;
+            let dy = 0;
+            if (keys.ArrowLeft || keys.KeyA) dx -= 1;
+            if (keys.ArrowRight || keys.KeyD) dx += 1;
+            if (keys.ArrowUp || keys.KeyW) dy -= 1;
+            if (keys.ArrowDown || keys.KeyS) dy += 1;
+            if (dx === 0 && dy === 0) return;
+
+            const length = Math.hypot(dx, dy);
+            dx /= length;
+            dy /= length;
+
+            let speed = theo.speed;
+            if (isInMud(theo.x, theo.y)) speed *= 0.58;
+            const nextX = clamp(theo.x + dx * speed * dt, theo.radius, canvas.width - theo.radius);
+            const nextY = clamp(theo.y + dy * speed * dt, theo.radius, canvas.height - theo.radius);
+
+            if (!isBlockedCircle(nextX, theo.y, theo.radius)) theo.x = nextX;
+            if (!isBlockedCircle(theo.x, nextY, theo.radius)) theo.y = nextY;
+        }
+
+        function clamp(value, min, max) {
+            return Math.max(min, Math.min(max, value));
+        }
+
+        function isInMud(x, y) {
+            return obstacles.some(item => item.type === "mud" && pointInRect(x, y, item));
+        }
+
+        function isBlockedCircle(x, y, radius) {
+            return obstacles.some(item => item.type !== "mud" && circleRectCollide(x, y, radius, item));
+        }
+
+        function pointInRect(x, y, rect) {
+            return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
+        }
+
+        function circleRectCollide(x, y, radius, rect) {
+            const nearestX = clamp(x, rect.x, rect.x + rect.w);
+            const nearestY = clamp(y, rect.y, rect.y + rect.h);
+            return getDist(x, y, nearestX, nearestY) < radius;
+        }
+
+        function collectTreasures() {
+            treasures.forEach(item => {
+                if (item.collected) return;
+                if (getDist(theo.x, theo.y, item.x, item.y) <= theo.radius + item.radius + 4) {
+                    item.collected = true;
+                    collected++;
+                    score += item.points;
+                    if (item.bonus) {
+                        bonusCollected++;
+                        showHelperMessage(helperMessages[Math.floor(Math.random() * helperMessages.length)]);
+                    }
+                    addSparkles(item.x, item.y, item.color, `+${item.points}`);
+                }
+            });
+        }
+
+        function addSparkles(x, y, color, text) {
+            effects.push({ type: "text", x, y, text, color, life: 48, vy: -0.7 });
+            for (let i = 0; i < 10; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = randomRange(0.8, 2.3);
+                effects.push({
+                    type: "spark",
+                    x,
+                    y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    radius: randomRange(2, 4),
+                    color,
+                    life: randomRange(18, 32)
+                });
+            }
+        }
+
+        function updateEffects(dt) {
+            for (let i = effects.length - 1; i >= 0; i--) {
+                const effect = effects[i];
+                effect.life -= dt;
+                if (effect.life <= 0) {
+                    effects.splice(i, 1);
+                    continue;
+                }
+                if (effect.type === "text") {
+                    effect.y += effect.vy * dt;
+                } else {
+                    effect.x += effect.vx * dt;
+                    effect.y += effect.vy * dt;
+                    effect.vx *= 0.98;
+                    effect.vy *= 0.98;
+                }
+            }
+        }
+
+        function updateFireflies(dt) {
+            fireflies.forEach(fly => {
+                fly.x += fly.vx * dt;
+                fly.y += fly.vy * dt;
+                fly.glow += 0.08 * dt;
+                if (fly.x < 12 || fly.x > canvas.width - 12) fly.vx *= -1;
+                if (fly.y < 12 || fly.y > canvas.height - 12) fly.vy *= -1;
+            });
+            biscuit.pulse += 0.08 * dt;
+        }
+
+        function updateHelper(dt) {
+            helperTimer -= dt;
+            if (helperTimer <= 0 && Math.random() < 0.006) {
+                showHelperMessage(helperMessages[Math.floor(Math.random() * helperMessages.length)]);
+            }
+        }
+
+        function showHelperMessage(message) {
+            helperMessage.textContent = message;
+            helperMessage.classList.add("visible");
+            helperTimer = 260;
+            window.clearTimeout(showHelperMessage.timer);
+            showHelperMessage.timer = window.setTimeout(() => helperMessage.classList.remove("visible"), 2400);
+        }
+
+        function finishRound() {
+            roundActive = false;
+            isPaused = false;
+            remaining = 0;
+            if (animationId) cancelAnimationFrame(animationId);
+            updateHud();
+            const bestScore = window.ArcadeStorage.setHighScore("theo-grey", score);
+            bestDisplay.innerText = bestScore;
+            roundSummary.textContent = `Treasures Collected: ${collected}\nBonus Items: ${bonusCollected}\nFinal Score: ${score}\nBest Score: ${bestScore}\nCozy Rank: ${getRank(score)}`;
+            roundComplete.style.display = "block";
+        }
+
+        function getRank(finalScore) {
+            if (finalScore >= 850) return "Backyard Legend";
+            if (finalScore >= 620) return "Cozy Explorer";
+            if (finalScore >= 420) return "Treasure Finder";
+            if (finalScore >= 220) return "Lantern Scout";
+            return "Backyard Buddy";
+        }
+
+        function draw() {
+            drawBackyard();
+            drawObstacles();
+            drawTreasures();
+            drawHelpers();
+            drawTheo();
+            drawEffects();
+            drawFireflies();
+        }
+
+        function drawBackyard() {
+            ctx.fillStyle = "#68bd6f";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "#8bd17f";
+            for (let y = 20; y < canvas.height; y += 48) {
+                for (let x = 18; x < canvas.width; x += 54) {
+                    ctx.fillRect(x, y, 12, 3);
+                    ctx.fillRect(x + 24, y + 19, 10, 3);
+                }
+            }
+
+            ctx.fillStyle = "#d9b16f";
+            for (let i = 0; i < 9; i++) {
+                ctx.fillRect(310 + i * 24, 456 - i * 34, 18, 14);
+            }
+
+            drawFlowers();
+            drawLanterns();
+        }
+
+        function drawFlowers() {
+            const flowers = [[64, 76], [92, 104], [705, 210], [744, 238], [72, 470], [608, 64], [642, 72]];
+            flowers.forEach((flower, index) => {
+                ctx.fillStyle = index % 2 ? "#f9a8d4" : "#fde047";
+                ctx.beginPath();
+                ctx.arc(flower[0], flower[1], 5, 0, Math.PI * 2);
+                ctx.arc(flower[0] + 6, flower[1] + 3, 4, 0, Math.PI * 2);
+                ctx.arc(flower[0] - 5, flower[1] + 3, 4, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        function drawLanterns() {
+            [[42, 42], [756, 46], [42, 492], [756, 492]].forEach(pos => {
+                ctx.fillStyle = "#7c2d12";
+                ctx.fillRect(pos[0] - 3, pos[1], 6, 28);
+                ctx.fillStyle = "#fde68a";
+                ctx.beginPath();
+                ctx.arc(pos[0], pos[1], 10, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        function drawObstacles() {
+            obstacles.forEach(item => {
+                if (item.type === "mud") {
+                    ctx.fillStyle = "rgba(120, 75, 42, 0.72)";
+                    ctx.beginPath();
+                    ctx.ellipse(item.x + item.w / 2, item.y + item.h / 2, item.w / 2, item.h / 2, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    return;
+                }
+
+                if (item.type === "blocks") {
+                    ctx.fillStyle = "#f97316";
+                    ctx.fillRect(item.x, item.y, item.w, item.h);
+                    ctx.fillStyle = "#60a5fa";
+                    ctx.fillRect(item.x + 8, item.y + 8, item.w - 16, item.h - 16);
+                    return;
+                }
+
+                ctx.fillStyle = "#1f7a45";
+                ctx.beginPath();
+                ctx.arc(item.x + 18, item.y + 28, 25, 0, Math.PI * 2);
+                ctx.arc(item.x + 45, item.y + 20, 29, 0, Math.PI * 2);
+                ctx.arc(item.x + 72, item.y + 31, 24, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        function drawTreasures() {
+            treasures.forEach(item => {
+                if (item.collected) return;
+                item.bob += 0.05;
+                const y = item.y + Math.sin(item.bob) * 2;
+                ctx.shadowBlur = 12;
+                ctx.shadowColor = item.color;
+                ctx.fillStyle = item.color;
+
+                if (item.kind === "star") drawStar(item.x, y, 10, 5);
+                else if (item.kind === "book") ctx.fillRect(item.x - 9, y - 8, 18, 16);
+                else if (item.kind === "car") drawCar(item.x, y);
+                else if (item.kind === "lantern") drawSmallLantern(item.x, y);
+                else if (item.kind === "map") drawMap(item.x, y);
+                else drawBone(item.x, y);
+
+                ctx.shadowBlur = 0;
+            });
+        }
+
+        function drawStar(x, y, outer, inner) {
+            ctx.beginPath();
+            for (let i = 0; i < 10; i++) {
+                const radius = i % 2 === 0 ? outer : inner;
+                const angle = -Math.PI / 2 + i * Math.PI / 5;
+                const px = x + Math.cos(angle) * radius;
+                const py = y + Math.sin(angle) * radius;
+                if (i === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        function drawCar(x, y) {
+            ctx.fillRect(x - 12, y - 6, 24, 12);
+            ctx.fillStyle = "#0f172a";
+            ctx.beginPath();
+            ctx.arc(x - 7, y + 7, 3, 0, Math.PI * 2);
+            ctx.arc(x + 7, y + 7, 3, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawSmallLantern(x, y) {
+            ctx.fillRect(x - 7, y - 9, 14, 18);
+            ctx.fillStyle = "#fef3c7";
+            ctx.fillRect(x - 4, y - 5, 8, 10);
+        }
+
+        function drawMap(x, y) {
+            ctx.fillRect(x - 11, y - 8, 22, 16);
+            ctx.strokeStyle = "#92400e";
+            ctx.strokeRect(x - 11, y - 8, 22, 16);
+        }
+
+        function drawBone(x, y) {
+            ctx.beginPath();
+            ctx.arc(x - 8, y - 4, 5, 0, Math.PI * 2);
+            ctx.arc(x - 8, y + 4, 5, 0, Math.PI * 2);
+            ctx.arc(x + 8, y - 4, 5, 0, Math.PI * 2);
+            ctx.arc(x + 8, y + 4, 5, 0, Math.PI * 2);
+            ctx.fillRect(x - 9, y - 4, 18, 8);
+            ctx.fill();
+        }
+
+        function drawHelpers() {
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = "#a78bfa";
+            ctx.beginPath();
+            ctx.arc(grey.x, grey.y, grey.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#f8fafc";
+            ctx.fillText("Grey", grey.x - 15, grey.y - 22);
+
+            const biscuitY = biscuit.y + Math.sin(biscuit.pulse) * 3;
+            ctx.fillStyle = "#fbbf24";
+            ctx.beginPath();
+            ctx.arc(biscuit.x, biscuitY, biscuit.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#0f172a";
+            ctx.fillText("Biscuit", biscuit.x - 22, biscuitY - 20);
+        }
+
+        function drawTheo() {
+            ctx.shadowBlur = 14;
+            ctx.shadowColor = theo.color;
+            ctx.fillStyle = theo.color;
+            ctx.beginPath();
+            ctx.arc(theo.x, theo.y, theo.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = "#f8fafc";
+            ctx.fillRect(theo.x - 6, theo.y - 4, 4, 4);
+            ctx.fillRect(theo.x + 3, theo.y - 4, 4, 4);
+            ctx.fillText("Theo", theo.x - 16, theo.y - 22);
+        }
+
+        function drawEffects() {
+            effects.forEach(effect => {
+                ctx.globalAlpha = Math.max(0, effect.life / 48);
+                ctx.fillStyle = effect.color;
+                if (effect.type === "text") {
+                    ctx.font = "bold 16px Segoe UI";
+                    ctx.textAlign = "center";
+                    ctx.fillText(effect.text, effect.x, effect.y);
+                } else {
+                    ctx.beginPath();
+                    ctx.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+            ctx.globalAlpha = 1;
+        }
+
+        function drawFireflies() {
+            fireflies.forEach(fly => {
+                ctx.globalAlpha = 0.35 + Math.sin(fly.glow) * 0.25;
+                ctx.fillStyle = "#fef3c7";
+                ctx.beginPath();
+                ctx.arc(fly.x, fly.y, 2.5, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            ctx.globalAlpha = 1;
+        }
+
+        window.ArcadeControls.init({
+            instructions: [
+                "Move Theo with WASD, arrow keys, or the mobile D-pad.",
+                "Collect treasures before the 60-second sunset timer ends.",
+                "Biscuit bones are bonus items worth extra points.",
+                "Bushes block movement and mud puddles slow Theo down.",
+                "There are no enemies and no death state. Just gather cozy treasures."
+            ],
+            onRestart: startRound,
+            isPaused: () => isPaused,
+            onPauseToggle: () => {
+                if (!roundActive) return false;
+                isPaused = !isPaused;
+                if (!isPaused) lastTime = performance.now();
+                return isPaused;
+            }
+        });
+
+        window.ArcadeMobileControls.createDPad({
+            shouldHide: () => !roundActive || startScreen.style.display === "block" || roundComplete.style.display === "block"
+        });
+
+        showStartScreen();
+    </script>
+</body>
+</html>

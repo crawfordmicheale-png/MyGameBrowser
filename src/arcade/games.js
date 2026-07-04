@@ -72,6 +72,18 @@
             thumbnail: "\uD83C\uDF0C"
         },
         {
+            id: "theo-grey",
+            title: "Theo & Grey: Backyard Treasure Hunt",
+            description: "Help Theo gather cozy backyard treasures before sunset.",
+            genre: "Cozy / Collectathon",
+            route: "./games/theo-grey/index.html",
+            highScoreKey: "arcade.highScore.theo-grey",
+            scoreType: "score",
+            scoreLabel: "Best",
+            status: "Playable",
+            thumbnail: "TG"
+        },
+        {
             id: "breakout",
             title: "Neon Breakout",
             description: "Bounce the ball, clear bricks, and keep the system alive.",
