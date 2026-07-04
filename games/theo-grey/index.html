@@ -56,11 +56,17 @@
         }
 
         .cozy-copy,
-        #round-summary {
+        #round-summary,
+        #progress-summary {
             color: #dbeafe;
             line-height: 1.55;
             margin-bottom: 1rem;
             white-space: pre-line;
+        }
+
+        #progress-summary {
+            color: #fde68a;
+            font-size: 0.9rem;
         }
 
         #helper-message {
@@ -117,9 +123,10 @@
 
         <div id="start-screen" class="screen-overlay cozy-overlay">
             <h2>Backyard Treasure Hunt</h2>
-            <div class="cozy-copy">Help Theo collect stars, books, toy cars, lantern lights, and map pieces before sunset.
+            <div class="cozy-copy">Help Theo collect fireflies, storybooks, toy cars, lantern lights, map pieces, and Biscuit bones before sunset.
 
-Bushes block the way. Mud puddles slow Theo down. Biscuit bones are bonus treasures.</div>
+Every round has a cozy special item. Find Biscuit for bonus surprises!</div>
+            <div id="progress-summary"></div>
             <button onclick="startRound()">START HUNT</button>
             <button class="lobby-btn" onclick="window.location.href='../../index.html'">BACK TO LOBBY</button>
         </div>
@@ -141,6 +148,7 @@ Bushes block the way. Mud puddles slow Theo down. Biscuit bones are bonus treasu
         const startScreen = document.getElementById("start-screen");
         const roundComplete = document.getElementById("round-complete");
         const roundSummary = document.getElementById("round-summary");
+        const progressSummary = document.getElementById("progress-summary");
         const helperMessage = document.getElementById("helper-message");
         const timeDisplay = document.getElementById("time-display");
         const scoreDisplay = document.getElementById("score-display");
@@ -154,19 +162,28 @@ Bushes block the way. Mud puddles slow Theo down. Biscuit bones are bonus treasu
         const obstacles = [];
         const effects = [];
         const fireflies = [];
+        const progressKey = "arcade.progress.theo-grey";
         const helperMessages = [
-            "Grey says: check by the lanterns!",
-            "Biscuit found a clue!",
-            "Grey cheers: go Theo go!",
-            "Biscuit sniffed out a bonus!"
+            "You found a shiny one!",
+            "Biscuit sees something!",
+            "Great exploring!",
+            "Almost sunset!",
+            "Grey says: nice treasure!"
         ];
         const treasureTypes = [
-            { kind: "star", label: "Star", points: 10, bonus: false, color: "#fde047" },
-            { kind: "book", label: "Book", points: 15, bonus: false, color: "#60a5fa" },
-            { kind: "car", label: "Toy Car", points: 20, bonus: false, color: "#f97316" },
-            { kind: "lantern", label: "Lantern Light", points: 25, bonus: false, color: "#facc15" },
-            { kind: "map", label: "Map Piece", points: 30, bonus: false, color: "#f9a8d4" },
-            { kind: "bone", label: "Biscuit Bone", points: 50, bonus: true, color: "#f8fafc" }
+            { kind: "firefly", label: "Firefly", points: 8, bonus: false, color: "#fef3c7" },
+            { kind: "car", label: "Toy Car", points: 18, bonus: false, color: "#f97316" },
+            { kind: "book", label: "Storybook", points: 20, bonus: false, color: "#60a5fa" },
+            { kind: "lantern", label: "Lantern Light", points: 35, bonus: true, color: "#facc15" },
+            { kind: "map", label: "Map Piece", points: 45, bonus: false, color: "#f9a8d4" },
+            { kind: "bone", label: "Biscuit Bone", points: 60, bonus: true, color: "#f8fafc" }
+        ];
+        const roundThemes = [
+            { kind: "firefly", message: "Firefly evening!", multiplier: 2 },
+            { kind: "book", message: "Storybook search!", multiplier: 2 },
+            { kind: "bone", message: "Biscuit bone bonus!", multiplier: 2 },
+            { kind: "lantern", message: "Lantern glow round!", multiplier: 2 },
+            { kind: "map", message: "Map piece mystery!", multiplier: 2 }
         ];
 
         let theo;
@@ -175,15 +192,55 @@ Bushes block the way. Mud puddles slow Theo down. Biscuit bones are bonus treasu
         let score = 0;
         let collected = 0;
         let bonusCollected = 0;
+        let bonesFound = 0;
         let remaining = roundSeconds;
         let roundActive = false;
         let isPaused = false;
         let animationId;
         let lastTime = 0;
         let helperTimer = 0;
+        let nextBiscuitTime = 0;
+        let activeTheme;
+        let progression;
 
         document.addEventListener("keydown", event => keys[event.code] = true);
         document.addEventListener("keyup", event => keys[event.code] = false);
+
+        function readProgress() {
+            try {
+                return JSON.parse(localStorage.getItem(progressKey)) || {
+                    totalTreasures: 0,
+                    totalBones: 0,
+                    bestRank: "Backyard Buddy"
+                };
+            } catch (error) {
+                return { totalTreasures: 0, totalBones: 0, bestRank: "Backyard Buddy" };
+            }
+        }
+
+        function saveProgress() {
+            try {
+                localStorage.setItem(progressKey, JSON.stringify(progression));
+            } catch (error) {
+                // Progress is optional in restricted browser modes.
+            }
+        }
+
+        function getUnlocks() {
+            const total = progression ? progression.totalTreasures : 0;
+            const unlocks = [];
+            if (total >= 25) unlocks.push("flower patch");
+            if (total >= 50) unlocks.push("lantern");
+            if (total >= 100) unlocks.push("cozy blanket");
+            if (total >= 200) unlocks.push("backyard banner");
+            return unlocks;
+        }
+
+        function updateProgressSummary() {
+            progression = readProgress();
+            const unlocks = getUnlocks();
+            progressSummary.textContent = `All-time treasures: ${progression.totalTreasures} | Biscuit bones: ${progression.totalBones}\nBest cozy rank: ${progression.bestRank}${unlocks.length ? `\nUnlocked: ${unlocks.join(", ")}` : ""}`;
+        }
 
         function showStartScreen() {
             roundActive = false;
@@ -191,6 +248,7 @@ Bushes block the way. Mud puddles slow Theo down. Biscuit bones are bonus treasu
             startScreen.style.display = "block";
             roundComplete.style.display = "none";
             bestDisplay.innerText = window.ArcadeStorage.getHighScore("theo-grey");
+            updateProgressSummary();
             setupRound();
             draw();
         }
@@ -198,12 +256,16 @@ Bushes block the way. Mud puddles slow Theo down. Biscuit bones are bonus treasu
         function setupRound() {
             theo = { x: 90, y: 420, radius: 16, speed: 4.1, color: "#38bdf8" };
             grey = { x: 730, y: 88, radius: 15 };
-            biscuit = { x: 680, y: 440, radius: 12, pulse: 0 };
+            biscuit = { x: 680, y: 440, radius: 12, pulse: 0, active: false };
             score = 0;
             collected = 0;
             bonusCollected = 0;
+            bonesFound = 0;
             remaining = roundSeconds;
             helperTimer = 0;
+            nextBiscuitTime = randomRange(8, 16);
+            activeTheme = roundThemes[Math.floor(Math.random() * roundThemes.length)];
+            progression = readProgress();
             treasures.length = 0;
             obstacles.length = 0;
             effects.length = 0;
@@ -212,12 +274,13 @@ Bushes block the way. Mud puddles slow Theo down. Biscuit bones are bonus treasu
             keys.ArrowRight = false;
             keys.ArrowUp = false;
             keys.ArrowDown = false;
+            helperMessage.classList.remove("visible");
 
             createObstacles();
             createTreasures();
             createFireflies();
             updateHud();
-            helperMessage.classList.remove("visible");
+            showHelperMessage(activeTheme.message);
         }
 
         function startRound() {
@@ -232,38 +295,64 @@ Bushes block the way. Mud puddles slow Theo down. Biscuit bones are bonus treasu
         }
 
         function createObstacles() {
-            const fixed = [
-                { type: "bush", x: 185, y: 145, w: 82, h: 54 },
-                { type: "bush", x: 540, y: 118, w: 92, h: 58 },
-                { type: "bush", x: 360, y: 330, w: 96, h: 58 },
-                { type: "mud", x: 150, y: 300, w: 118, h: 56 },
-                { type: "mud", x: 575, y: 300, w: 120, h: 60 }
+            const layouts = [
+                [
+                    { type: "bush", x: 185, y: 145, w: 82, h: 54 },
+                    { type: "bush", x: 540, y: 118, w: 92, h: 58 },
+                    { type: "mud", x: 150, y: 300, w: 118, h: 56 }
+                ],
+                [
+                    { type: "bush", x: 315, y: 135, w: 88, h: 54 },
+                    { type: "mud", x: 520, y: 280, w: 130, h: 62 },
+                    { type: "sprinkler", x: 120, y: 118, w: 92, h: 92 }
+                ],
+                [
+                    { type: "bush", x: 560, y: 180, w: 96, h: 58 },
+                    { type: "mud", x: 232, y: 345, w: 135, h: 58 },
+                    { type: "sprinkler", x: 430, y: 96, w: 92, h: 92 }
+                ]
             ];
-            fixed.forEach(item => obstacles.push(item));
+            layouts[Math.floor(Math.random() * layouts.length)].forEach(item => obstacles.push(item));
 
-            for (let i = 0; i < 3; i++) {
-                obstacles.push({
-                    type: "blocks",
-                    x: randomRange(110, 650),
-                    y: randomRange(95, 390),
-                    w: 46,
-                    h: 42
-                });
+            addRandomObstacle("bush", 2, 82, 54);
+            addRandomObstacle("mud", 2, 116, 58);
+            addRandomObstacle("blocks", 4, 46, 42);
+            if (Math.random() > 0.4) addRandomObstacle("sprinkler", 1, 88, 88);
+        }
+
+        function addRandomObstacle(type, count, w, h) {
+            for (let i = 0; i < count; i++) {
+                let item;
+                let attempts = 0;
+                do {
+                    item = { type, x: randomRange(80, canvas.width - w - 80), y: randomRange(76, canvas.height - h - 58), w, h };
+                    attempts++;
+                } while (attempts < 40 && (circleRectCollide(theo.x, theo.y, 82, item) || obstacles.some(other => rectsOverlap(item, other))));
+                obstacles.push(item);
             }
+        }
+
+        function rectsOverlap(a, b) {
+            return a.x < b.x + b.w + 20 && a.x + a.w + 20 > b.x && a.y < b.y + b.h + 20 && a.y + a.h + 20 > b.y;
         }
 
         function createTreasures() {
-            for (let i = 0; i < 34; i++) {
-                const type = treasureTypes[i % (treasureTypes.length - 1)];
+            for (let i = 0; i < 32; i++) {
+                const type = treasureTypes[Math.floor(Math.random() * (treasureTypes.length - 1))];
                 treasures.push(createTreasure(type));
             }
 
-            for (let i = 0; i < 5; i++) {
+            for (let i = 0; i < 4; i++) {
                 treasures.push(createTreasure(treasureTypes[treasureTypes.length - 1]));
+            }
+
+            const specialType = treasureTypes.find(type => type.kind === activeTheme.kind);
+            for (let i = 0; i < 8; i++) {
+                treasures.push(createTreasure(specialType, true));
             }
         }
 
-        function createTreasure(type) {
+        function createTreasure(type, isSpecial) {
             let item;
             do {
                 item = {
@@ -272,7 +361,8 @@ Bushes block the way. Mud puddles slow Theo down. Biscuit bones are bonus treasu
                     y: randomRange(60, canvas.height - 48),
                     radius: type.bonus ? 12 : 10,
                     collected: false,
-                    bob: Math.random() * Math.PI * 2
+                    bob: Math.random() * Math.PI * 2,
+                    special: Boolean(isSpecial)
                 };
             } while (isBlockedCircle(item.x, item.y, item.radius + 8) || getDist(item.x, item.y, theo.x, theo.y) < 90);
             return item;
@@ -324,6 +414,7 @@ Bushes block the way. Mud puddles slow Theo down. Biscuit bones are bonus treasu
 
             moveTheo(dt);
             collectTreasures();
+            updateBiscuit(dt);
             updateEffects(dt);
             updateFireflies(dt);
             updateHelper(dt);
@@ -344,7 +435,7 @@ Bushes block the way. Mud puddles slow Theo down. Biscuit bones are bonus treasu
             dy /= length;
 
             let speed = theo.speed;
-            if (isInMud(theo.x, theo.y)) speed *= 0.58;
+            if (isSlowZone(theo.x, theo.y)) speed *= 0.58;
             const nextX = clamp(theo.x + dx * speed * dt, theo.radius, canvas.width - theo.radius);
             const nextY = clamp(theo.y + dy * speed * dt, theo.radius, canvas.height - theo.radius);
 
@@ -356,12 +447,12 @@ Bushes block the way. Mud puddles slow Theo down. Biscuit bones are bonus treasu
             return Math.max(min, Math.min(max, value));
         }
 
-        function isInMud(x, y) {
-            return obstacles.some(item => item.type === "mud" && pointInRect(x, y, item));
+        function isSlowZone(x, y) {
+            return obstacles.some(item => (item.type === "mud" || item.type === "sprinkler") && pointInRect(x, y, item));
         }
 
         function isBlockedCircle(x, y, radius) {
-            return obstacles.some(item => item.type !== "mud" && circleRectCollide(x, y, radius, item));
+            return obstacles.some(item => item.type !== "mud" && item.type !== "sprinkler" && circleRectCollide(x, y, radius, item));
         }
 
         function pointInRect(x, y, rect) {
@@ -380,14 +471,60 @@ Bushes block the way. Mud puddles slow Theo down. Biscuit bones are bonus treasu
                 if (getDist(theo.x, theo.y, item.x, item.y) <= theo.radius + item.radius + 4) {
                     item.collected = true;
                     collected++;
-                    score += item.points;
+                    const itemScore = item.special ? item.points * activeTheme.multiplier : item.points;
+                    score += itemScore;
                     if (item.bonus) {
                         bonusCollected++;
                         showHelperMessage(helperMessages[Math.floor(Math.random() * helperMessages.length)]);
                     }
-                    addSparkles(item.x, item.y, item.color, `+${item.points}`);
+                    if (item.kind === "bone") bonesFound++;
+                    addSparkles(item.x, item.y, item.color, `+${itemScore}`);
                 }
             });
+        }
+
+        function updateBiscuit(dt) {
+            if (!biscuit.active) {
+                nextBiscuitTime -= dt / 60;
+                if (nextBiscuitTime <= 0) spawnBiscuit();
+                return;
+            }
+
+            if (getDist(theo.x, theo.y, biscuit.x, biscuit.y) < theo.radius + biscuit.radius + 10) {
+                revealBiscuitBonus();
+            }
+        }
+
+        function spawnBiscuit() {
+            let attempts = 0;
+            do {
+                biscuit.x = randomRange(70, canvas.width - 70);
+                biscuit.y = randomRange(70, canvas.height - 70);
+                attempts++;
+            } while (attempts < 30 && isBlockedCircle(biscuit.x, biscuit.y, biscuit.radius + 12));
+            biscuit.active = true;
+            showHelperMessage("Biscuit sees something!");
+        }
+
+        function revealBiscuitBonus() {
+            const boneType = treasureTypes.find(type => type.kind === "bone");
+            for (let i = 0; i < 3; i++) {
+                const angle = Math.PI * 2 * i / 3;
+                const distance = 42;
+                treasures.push({
+                    ...boneType,
+                    x: clamp(biscuit.x + Math.cos(angle) * distance, 36, canvas.width - 36),
+                    y: clamp(biscuit.y + Math.sin(angle) * distance, 42, canvas.height - 36),
+                    radius: 12,
+                    collected: false,
+                    bob: Math.random() * Math.PI * 2,
+                    special: activeTheme.kind === "bone"
+                });
+            }
+            addSparkles(biscuit.x, biscuit.y, "#fbbf24", "Biscuit bonus!");
+            showHelperMessage("Biscuit found a surprise!");
+            biscuit.active = false;
+            nextBiscuitTime = randomRange(16, 24);
         }
 
         function addSparkles(x, y, color, text) {
@@ -460,8 +597,13 @@ Bushes block the way. Mud puddles slow Theo down. Biscuit bones are bonus treasu
             if (animationId) cancelAnimationFrame(animationId);
             updateHud();
             const bestScore = window.ArcadeStorage.setHighScore("theo-grey", score);
+            const rank = getRank(score);
+            progression.totalTreasures += collected;
+            progression.totalBones += bonesFound;
+            progression.bestRank = betterRank(progression.bestRank, rank);
+            saveProgress();
             bestDisplay.innerText = bestScore;
-            roundSummary.textContent = `Treasures Collected: ${collected}\nBonus Items: ${bonusCollected}\nFinal Score: ${score}\nBest Score: ${bestScore}\nCozy Rank: ${getRank(score)}`;
+            roundSummary.textContent = `Score: ${score}\nBest Score: ${bestScore}\nTreasures Collected: ${collected}\nBonus Items Found: ${bonusCollected}\nBiscuit Bones Found: ${bonesFound}\nCozy Rank: ${rank}\nTotal Treasures: ${progression.totalTreasures}`;
             roundComplete.style.display = "block";
         }
 
@@ -470,7 +612,13 @@ Bushes block the way. Mud puddles slow Theo down. Biscuit bones are bonus treasu
             if (finalScore >= 620) return "Cozy Explorer";
             if (finalScore >= 420) return "Treasure Finder";
             if (finalScore >= 220) return "Lantern Scout";
+            if (finalScore >= 110) return "Firefly Finder";
             return "Backyard Buddy";
+        }
+
+        function betterRank(current, next) {
+            const ranks = ["Backyard Buddy", "Firefly Finder", "Lantern Scout", "Treasure Finder", "Cozy Explorer", "Backyard Legend"];
+            return ranks.indexOf(next) > ranks.indexOf(current) ? next : current;
         }
 
         function draw() {
@@ -501,6 +649,46 @@ Bushes block the way. Mud puddles slow Theo down. Biscuit bones are bonus treasu
 
             drawFlowers();
             drawLanterns();
+            drawUnlockedDecorations();
+            drawSunsetGlow();
+        }
+
+        function drawSunsetGlow() {
+            const progress = 1 - remaining / roundSeconds;
+            ctx.fillStyle = `rgba(251, 146, 60, ${0.06 + progress * 0.16})`;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function drawUnlockedDecorations() {
+            const unlocks = getUnlocks();
+            if (unlocks.includes("flower patch")) {
+                [[675, 360], [696, 374], [718, 360], [692, 344]].forEach(pos => {
+                    ctx.fillStyle = "#f9a8d4";
+                    ctx.beginPath();
+                    ctx.arc(pos[0], pos[1], 6, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+            }
+            if (unlocks.includes("lantern")) {
+                ctx.fillStyle = "#fde68a";
+                ctx.beginPath();
+                ctx.arc(398, 52, 14, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            if (unlocks.includes("cozy blanket")) {
+                ctx.fillStyle = "#60a5fa";
+                ctx.fillRect(80, 230, 62, 38);
+                ctx.fillStyle = "#f9a8d4";
+                ctx.fillRect(80, 248, 62, 6);
+            }
+            if (unlocks.includes("backyard banner")) {
+                ctx.fillStyle = "#fef3c7";
+                ctx.fillRect(300, 18, 200, 24);
+                ctx.fillStyle = "#7c2d12";
+                ctx.font = "bold 13px Segoe UI";
+                ctx.textAlign = "center";
+                ctx.fillText("COZY HUNT CLUB", 400, 35);
+            }
         }
 
         function drawFlowers() {
@@ -536,6 +724,22 @@ Bushes block the way. Mud puddles slow Theo down. Biscuit bones are bonus treasu
                     return;
                 }
 
+                if (item.type === "sprinkler") {
+                    ctx.fillStyle = "rgba(96, 165, 250, 0.16)";
+                    ctx.beginPath();
+                    ctx.arc(item.x + item.w / 2, item.y + item.h / 2, item.w / 2, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.strokeStyle = "#60a5fa";
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(item.x + item.w / 2, item.y + item.h / 2);
+                    ctx.lineTo(item.x + item.w / 2 + 28, item.y + item.h / 2 - 22);
+                    ctx.moveTo(item.x + item.w / 2, item.y + item.h / 2);
+                    ctx.lineTo(item.x + item.w / 2 - 24, item.y + item.h / 2 + 26);
+                    ctx.stroke();
+                    return;
+                }
+
                 if (item.type === "blocks") {
                     ctx.fillStyle = "#f97316";
                     ctx.fillRect(item.x, item.y, item.w, item.h);
@@ -562,7 +766,15 @@ Bushes block the way. Mud puddles slow Theo down. Biscuit bones are bonus treasu
                 ctx.shadowColor = item.color;
                 ctx.fillStyle = item.color;
 
-                if (item.kind === "star") drawStar(item.x, y, 10, 5);
+                if (item.special) {
+                    ctx.fillStyle = "rgba(253, 230, 138, 0.25)";
+                    ctx.beginPath();
+                    ctx.arc(item.x, y, item.radius + 10 + Math.sin(item.bob) * 2, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = item.color;
+                }
+
+                if (item.kind === "firefly") drawFireflyItem(item.x, y);
                 else if (item.kind === "book") ctx.fillRect(item.x - 9, y - 8, 18, 16);
                 else if (item.kind === "car") drawCar(item.x, y);
                 else if (item.kind === "lantern") drawSmallLantern(item.x, y);
@@ -584,6 +796,17 @@ Bushes block the way. Mud puddles slow Theo down. Biscuit bones are bonus treasu
                 else ctx.lineTo(px, py);
             }
             ctx.closePath();
+            ctx.fill();
+        }
+
+        function drawFireflyItem(x, y) {
+            ctx.fillStyle = "#fef3c7";
+            ctx.beginPath();
+            ctx.arc(x, y, 6, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "rgba(254, 243, 199, 0.28)";
+            ctx.beginPath();
+            ctx.arc(x, y, 13, 0, Math.PI * 2);
             ctx.fill();
         }
 
@@ -628,10 +851,17 @@ Bushes block the way. Mud puddles slow Theo down. Biscuit bones are bonus treasu
             ctx.fillText("Grey", grey.x - 15, grey.y - 22);
 
             const biscuitY = biscuit.y + Math.sin(biscuit.pulse) * 3;
-            ctx.fillStyle = "#fbbf24";
+            ctx.fillStyle = biscuit.active ? "#fbbf24" : "rgba(251, 191, 36, 0.72)";
             ctx.beginPath();
             ctx.arc(biscuit.x, biscuitY, biscuit.radius, 0, Math.PI * 2);
             ctx.fill();
+            if (biscuit.active) {
+                ctx.strokeStyle = "#fef3c7";
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(biscuit.x, biscuitY, biscuit.radius + 9, 0, Math.PI * 2);
+                ctx.stroke();
+            }
             ctx.fillStyle = "#0f172a";
             ctx.fillText("Biscuit", biscuit.x - 22, biscuitY - 20);
         }
@@ -681,10 +911,11 @@ Bushes block the way. Mud puddles slow Theo down. Biscuit bones are bonus treasu
         window.ArcadeControls.init({
             instructions: [
                 "Move Theo with WASD, arrow keys, or the mobile D-pad.",
-                "Collect treasures before the 60-second sunset timer ends.",
-                "Biscuit bones are bonus items worth extra points.",
-                "Bushes block movement and mud puddles slow Theo down.",
-                "There are no enemies and no death state. Just gather cozy treasures."
+                "Pick up treasures before the 60-second sunset timer ends.",
+                "Find Biscuit for bonus surprises.",
+                "Mud and sprinklers slow Theo down.",
+                "Bushes and toy blocks make gentle paths.",
+                "Collect as much as you can before sunset."
             ],
             onRestart: startRound,
             isPaused: () => isPaused,
