@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Arcade Portal</title>
+    <link rel="stylesheet" href="./src/styles/base.css">
+    <link rel="stylesheet" href="./src/styles/arcade.css">
+</head>
+<body class="lobby-page">
+
+    <header>
+        <h1>Web Arcade</h1>
+        <div class="subtitle">Select a game to start playing</div>
+        <form class="profile-panel" id="profile-form">
+            <label for="display-name">Player</label>
+            <input id="display-name" name="display-name" type="text" maxlength="24" placeholder="Enter display name" autocomplete="nickname">
+            <button type="submit">Save</button>
+            <span class="profile-status" id="profile-status" aria-live="polite"></span>
+        </form>
+    </header>
+
+    <main class="game-grid" id="game-grid" aria-label="Arcade games"></main>
+
+    <script src="./src/arcade/storage.js"></script>
+    <script src="./src/arcade/games.js"></script>
+    <script>
+        function formatScore(game, score) {
+            if (game.scoreType === "time") {
+                const mins = Math.floor(score / 60);
+                const secs = score % 60;
+                return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
+            }
+
+            if (game.scoreType === "distance") {
+                return `${score}m`;
+            }
+
+            return String(score);
+        }
+
+        function getStoredScore(game) {
+            if (!game.highScoreKey) return null;
+
+            if (game.scoreType === "wins") {
+                return window.ArcadeStorage.getWinCount(game.id);
+            }
+
+            return window.ArcadeStorage.getHighScore(game.id, game.legacyHighScoreKey);
+        }
+
+        function launchGame(gameId) {
+            const game = window.ARCADE_GAMES.find(item => item.id === gameId);
+            if (game) {
+                window.location.href = game.route;
+            }
+        }
+
+        function createTextElement(className, text) {
+            const element = document.createElement("div");
+            element.className = className;
+            element.textContent = text;
+            return element;
+        }
+
+        function createGameCard(game) {
+            const card = document.createElement("div");
+            card.className = "game-card";
+            card.tabIndex = 0;
+            card.setAttribute("role", "button");
+            card.setAttribute("aria-label", `Play ${game.title}`);
+
+            card.appendChild(createTextElement("game-thumbnail", game.thumbnail));
+            card.appendChild(createTextElement("game-title", game.title));
+            card.appendChild(createTextElement("game-genre", game.genre));
+            card.appendChild(createTextElement("game-description", game.description));
+            card.appendChild(createTextElement("game-status", game.status));
+
+            if (game.highScoreKey) {
+                const highScore = getStoredScore(game);
+                const score = document.createElement("div");
+                score.className = "high-score";
+                score.textContent = `${game.scoreLabel || "Best"}: ${formatScore(game, highScore || 0)}`;
+                card.appendChild(score);
+            }
+
+            card.addEventListener("click", () => launchGame(game.id));
+            card.addEventListener("keydown", event => {
+                if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    launchGame(game.id);
+                }
+            });
+
+            return card;
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            const profileForm = document.getElementById("profile-form");
+            const displayNameInput = document.getElementById("display-name");
+            const profileStatus = document.getElementById("profile-status");
+            const grid = document.getElementById("game-grid");
+
+            displayNameInput.value = window.ArcadeStorage.getDisplayName();
+
+            profileForm.addEventListener("submit", event => {
+                event.preventDefault();
+                window.ArcadeStorage.setDisplayName(displayNameInput.value);
+                profileStatus.textContent = "Saved";
+            });
+
+            window.ARCADE_GAMES.forEach(game => {
+                grid.appendChild(createGameCard(game));
+            });
+        });
+    </script>
+
+</body>
+</html>

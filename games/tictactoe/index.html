@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Tic-Tac-Toe</title>
+    <link rel="stylesheet" href="../../src/styles/base.css">
+    <link rel="stylesheet" href="../../src/styles/game-shell.css">
+    <style>
+        .game-page .header {
+            display: block;
+            width: auto;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+
+        .game-page .arcade-controls {
+            width: 340px;
+        }
+
+        h1 {
+            margin: 0;
+            color: #06b6d4;
+            text-shadow: 0 0 10px rgba(6, 182, 212, 0.8);
+            letter-spacing: 2px;
+        }
+
+        #status {
+            font-size: 1.25rem;
+            margin-top: 0.5rem;
+            color: #94a3b8;
+        }
+
+        .board {
+            display: grid;
+            grid-template-columns: repeat(3, 100px);
+            gap: 10px;
+            background-color: #06b6d4; /* Creates the grid lines */
+            padding: 10px;
+            border-radius: 12px;
+            box-shadow: 0 0 20px rgba(6, 182, 212, 0.3);
+        }
+
+        .cell {
+            width: 100px;
+            height: 100px;
+            background-color: #1e293b;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 4rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            user-select: none;
+        }
+
+        .cell:hover {
+            background-color: #334155;
+        }
+
+        .cell.x {
+            color: #f43f5e;
+            text-shadow: 0 0 15px rgba(244, 63, 94, 0.8);
+        }
+
+        .cell.o {
+            color: #22c55e;
+            text-shadow: 0 0 15px rgba(34, 197, 94, 0.8);
+        }
+
+        .game-page button {
+            margin-top: 2rem;
+            padding: 12px 24px;
+            font-size: 1.1rem;
+            display: inline-block;
+            width: auto;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body class="game-page">
+
+    <div class="header">
+        <h1>TIC-TAC-TOE</h1>
+        <div id="status">Player X's Turn</div>
+    </div>
+
+    <div class="board" id="board">
+        <div class="cell" data-index="0"></div>
+        <div class="cell" data-index="1"></div>
+        <div class="cell" data-index="2"></div>
+        <div class="cell" data-index="3"></div>
+        <div class="cell" data-index="4"></div>
+        <div class="cell" data-index="5"></div>
+        <div class="cell" data-index="6"></div>
+        <div class="cell" data-index="7"></div>
+        <div class="cell" data-index="8"></div>
+    </div>
+
+    <script src="../../src/arcade/controls.js"></script>
+    <script>
+        const cells = document.querySelectorAll('.cell');
+        const statusText = document.getElementById('status');
+        
+        let board = ["", "", "", "", "", "", "", "", ""];
+        let currentPlayer = "X";
+        let gameActive = true;
+
+        // All 8 possible winning line combinations
+        const winConditions = [
+            [0, 1, 2], [3, 4, 5], [6, 7, 8], // Rows
+            [0, 3, 6], [1, 4, 7], [2, 5, 8], // Columns
+            [0, 4, 8], [2, 4, 6]             // Diagonals
+        ];
+
+        // Attach event listeners to all cells
+        cells.forEach(cell => cell.addEventListener('click', handleCellClick));
+
+        function handleCellClick(event) {
+            const clickedCell = event.target;
+            const cellIndex = clickedCell.getAttribute('data-index');
+
+            // Prevent clicking an already filled cell or if the game is over
+            if (board[cellIndex] !== "" || !gameActive) {
+                return;
+            }
+
+            // Update board state and UI
+            board[cellIndex] = currentPlayer;
+            clickedCell.innerText = currentPlayer;
+            clickedCell.classList.add(currentPlayer.toLowerCase());
+
+            checkWin();
+        }
+
+        function checkWin() {
+            let roundWon = false;
+
+            for (let i = 0; i < winConditions.length; i++) {
+                const condition = winConditions[i];
+                const a = board[condition[0]];
+                const b = board[condition[1]];
+                const c = board[condition[2]];
+
+                if (a === "" || b === "" || c === "") {
+                    continue; // Skip empty cells
+                }
+                
+                if (a === b && b === c) {
+                    roundWon = true;
+                    break;
+                }
+            }
+
+            if (roundWon) {
+                statusText.innerText = `Player ${currentPlayer} Wins!`;
+                statusText.style.color = currentPlayer === "X" ? "#f43f5e" : "#22c55e";
+                gameActive = false;
+                return;
+            }
+
+            // Check for a draw (if there are no empty strings left in the board array)
+            if (!board.includes("")) {
+                statusText.innerText = "It's a Draw!";
+                statusText.style.color = "#94a3b8";
+                gameActive = false;
+                return;
+            }
+
+            // Switch players
+            currentPlayer = currentPlayer === "X" ? "O" : "X";
+            statusText.innerText = `Player ${currentPlayer}'s Turn`;
+        }
+
+        function restartGame() {
+            // Reset state variables
+            board = ["", "", "", "", "", "", "", "", ""];
+            currentPlayer = "X";
+            gameActive = true;
+            
+            // Reset UI
+            statusText.innerText = `Player X's Turn`;
+            statusText.style.color = "#94a3b8";
+            
+            cells.forEach(cell => {
+                cell.innerText = "";
+                cell.classList.remove('x', 'o');
+            });
+        }
+
+        window.ArcadeControls.init({
+            instructions: [
+                "Click an empty cell to place your mark.",
+                "Players alternate between X and O.",
+                "Three in a row wins. A full board with no winner is a draw.",
+                "R restarts, H opens this panel."
+            ],
+            canPause: false,
+            onRestart: restartGame
+        });
+    </script>
+</body>
+</html>

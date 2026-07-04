@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Survivor</title>
+    <link rel="stylesheet" href="../../src/styles/base.css">
+    <link rel="stylesheet" href="../../src/styles/game-shell.css">
+    <style>
+        .game-page .header {
+            font-size: 1.2rem;
+            align-items: center;
+        }
+
+        .stats {
+            display: flex;
+            gap: 20px;
+        }
+
+        .stat-highlight {
+            color: #06b6d4;
+            text-shadow: 0 0 10px rgba(6, 182, 212, 0.8);
+        }
+
+        #xp-bar-container {
+            width: 800px;
+            height: 10px;
+            background-color: #1e293b;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            overflow: hidden;
+            border: 1px solid #334155;
+        }
+
+        #xp-bar {
+            height: 100%;
+            width: 0%;
+            background-color: #eab308;
+            box-shadow: 0 0 10px #eab308;
+            transition: width 0.2s;
+        }
+
+        .game-page canvas {
+            background-color: #0f172a; 
+        }
+
+        /* Shared Screen Overlay Styles */
+        .game-page .screen-overlay {
+            background: rgba(15, 23, 42, 0.95);
+            padding: 2rem 4rem;
+            z-index: 10;
+        }
+
+        .game-page #overlay-screen,
+        .game-page #level-up-screen {
+            background: rgba(15, 23, 42, 0.95);
+            padding: 2rem 4rem;
+        }
+
+        /* Level Up Screen */
+        #level-up-screen {
+            border: 2px solid #a855f7;
+            box-shadow: 0 0 20px rgba(168, 85, 247, 0.4);
+            width: 400px;
+        }
+
+        h2 { margin: 0 0 1rem 0; font-size: 2.5rem; }
+        .survived-time { font-size: 1.2rem; color: #94a3b8; margin-bottom: 1.5rem; }
+
+        .game-page button {
+            padding: 12px 24px;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+        }
+
+        /* Button Variations */
+        .btn-cyan { background-color: #06b6d4; }
+        .btn-cyan:hover { background-color: #f8fafc; box-shadow: 0 0 15px #06b6d4; }
+        
+        .game-page .btn-purple { background-color: #a855f7; color: #f8fafc; }
+        .game-page .btn-purple:hover { background-color: #d8b4fe; color: #0f172a; box-shadow: 0 0 15px #a855f7; }
+
+        /* Upgrade Subtitles */
+        .upgrade-desc {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: normal;
+            margin-top: 4px;
+            opacity: 0.9;
+        }
+
+        .phase-banner {
+            position: absolute;
+            top: 18px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #f8fafc;
+            font-size: 1.4rem;
+            font-weight: bold;
+            text-align: center;
+            text-shadow: 0 0 18px #06b6d4;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.25s ease;
+            z-index: 5;
+        }
+
+        .phase-banner.visible {
+            opacity: 1;
+        }
+
+        .summary-lines {
+            color: #cbd5e1;
+            line-height: 1.6;
+            margin-bottom: 1rem;
+            white-space: pre-line;
+        }
+
+        .upgrade-grid {
+            display: grid;
+            gap: 12px;
+        }
+
+        .upgrade-card {
+            width: 100%;
+            text-align: left;
+        }
+    </style>
+</head>
+<body class="game-page">
+
+    <div class="header">
+        <span>NEON SURVIVOR</span>
+        <div class="stats">
+            <span>LVL: <span id="level-display" class="stat-highlight">1</span></span>
+            <span>TIME: <span id="time-display" class="stat-highlight">0:00</span></span>
+            <span>HP: <span id="hp-display" class="stat-highlight">100</span></span>
+            <span>SCORE: <span id="score-display" class="stat-highlight">0</span></span>
+            <span>PHASE: <span id="phase-display" class="stat-highlight">I</span></span>
+        </div>
+    </div>
+    
+    <div id="xp-bar-container">
+        <div id="xp-bar"></div>
+    </div>
+
+    <div id="game-container">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <div id="phase-banner" class="phase-banner"></div>
+        
+        <!-- Game Over Screen -->
+        <div id="overlay-screen" class="screen-overlay">
+            <h2 id="end-title" style="color: #f43f5e; text-shadow: 0 0 10px #f43f5e;">SWARMED</h2>
+            <div class="survived-time">Survived: <span id="final-time">0:00</span></div>
+            <div id="run-summary" class="summary-lines"></div>
+            <button class="btn-cyan" onclick="resetGame()">RETRY</button>
+            <button class="lobby-btn" onclick="window.location.href='../../index.html'">BACK TO LOBBY</button>
+        </div>
+
+        <!-- Level Up Screen -->
+        <div id="level-up-screen" class="screen-overlay">
+            <h2 style="color: #a855f7; text-shadow: 0 0 10px #a855f7;">LEVEL UP!</h2>
+            <div id="upgrade-choices" class="upgrade-grid"></div>
+        </div>
+    </div>
+
+    <script src="../../src/arcade/storage.js"></script>
+    <script src="../../src/arcade/controls.js"></script>
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const levelDisplay = document.getElementById("level-display");
+        const timeDisplay = document.getElementById("time-display");
+        const xpBar = document.getElementById("xp-bar");
+        const overlayScreen = document.getElementById("overlay-screen");
+        const levelUpScreen = document.getElementById("level-up-screen");
+        const finalTimeDisplay = document.getElementById("final-time");
+
+        // Input
+        let keys = {};
+        document.addEventListener('keydown', e => keys[e.code] = true);
+        document.addEventListener('keyup', e => keys[e.code] = false);
+
+        // Core Game State
+        let animationId;
+        let isGameOver = false;
+        let isPaused = false; // Pause state for upgrades and standard controls
+        let isControlPaused = false;
+        
+        // Time tracking
+        let startTime;
+        let gameTime = 0; 
+        let pauseStartTime = 0; // Tracks when the game was paused to offset the clock
+
+        // Entities
+        let player, enemies, projectiles, gems;
+        
+        // Progression State
+        let enemySpawnRate; 
+        let lastSpawnTime;
+        let lastFireTime;
+
+        function initGame() {
+            player = {
+                x: 0, y: 0, 
+                radius: 15,
+                speed: 4,
+                color: "#06b6d4",
+                hp: 100, maxHp: 100,
+                level: 1, xp: 0, xpToNext: 10,
+                fireRate: 800, 
+                projSpeed: 10,
+                projDamage: 25
+            };
+
+            enemies = [];
+            projectiles = [];
+            gems = [];
+
+            enemySpawnRate = 1000; 
+            
+            const now = Date.now();
+            lastSpawnTime = now;
+            lastFireTime = now;
+            startTime = now;
+            
+            isGameOver = false;
+            isPaused = false;
+            isControlPaused = false;
+
+            levelDisplay.innerText = player.level;
+            updateXpBar();
+            overlayScreen.style.display = "none";
+            levelUpScreen.style.display = "none";
+        }
+
+        function getDist(x1, y1, x2, y2) {
+            return Math.hypot(x2 - x1, y2 - y1);
+        }
+
+        function spawnEnemy() {
+            const angle = Math.random() * Math.PI * 2;
+            const spawnRadius = 600; 
+            
+            const hpScale = 10 + (gameTime * 2);
+            const speedScale = 1.5 + (Math.random() * 1.5) + (gameTime * 0.02);
+
+            enemies.push({
+                x: player.x + Math.cos(angle) * spawnRadius,
+                y: player.y + Math.sin(angle) * spawnRadius,
+                radius: 12,
+                hp: hpScale,
+                maxHp: hpScale,
+                speed: speedScale,
+                color: "#f43f5e",
+                damage: 10
+            });
+        }
+
+        function fireProjectile() {
+            if (enemies.length === 0) return;
+
+            let closest = null;
+            let closestDist = Infinity;
+
+            enemies.forEach(e => {
+                let dist = getDist(player.x, player.y, e.x, e.y);
+                if (dist < closestDist) {
+                    closestDist = dist;
+                    closest = e;
+                }
+            });
+
+            if (closest) {
+                const angle = Math.atan2(closest.y - player.y, closest.x - player.x);
+                projectiles.push({
+                    x: player.x,
+                    y: player.y,
+                    vx: Math.cos(angle) * player.projSpeed,
+                    vy: Math.sin(angle) * player.projSpeed,
+                    radius: 5,
+                    damage: player.projDamage,
+                    color: "#f8fafc",
+                    life: 100 
+                });
+            }
+        }
+
+        function levelUp() {
+            player.level++;
+            player.xp -= player.xpToNext;
+            player.xpToNext = Math.floor(player.xpToNext * 1.5); 
+            
+            // Base stat bumps for leveling up
+            player.maxHp += 20;
+            player.hp = player.maxHp; 
+
+            levelDisplay.innerText = player.level;
+            updateXpBar();
+
+            // --- NEW: Trigger Pause and Show Menu ---
+            isPaused = true;
+            pauseStartTime = Date.now(); // Record when we paused
+            levelUpScreen.style.display = "block";
+            
+            // Clear input keys so the player doesn't keep running when unpaused
+            keys = {}; 
+        }
+
+        // --- NEW: Apply the selected upgrade and resume ---
+        function selectUpgrade(type) {
+            if (type === 'damage') {
+                player.projDamage += 10;
+            } else if (type === 'speed') {
+                player.speed += 0.6;
+            } else if (type === 'firerate') {
+                // Reduces the cooldown time by 15%, capping at 150ms per shot
+                player.fireRate = Math.max(150, player.fireRate * 0.85); 
+            }
+
+            // Offset the game clock so the time spent in the menu doesn't count
+            startTime += (Date.now() - pauseStartTime);
+            
+            levelUpScreen.style.display = "none";
+            isPaused = isControlPaused;
+        }
+
+        function updateXpBar() {
+            const percent = Math.min(100, (player.xp / player.xpToNext) * 100);
+            xpBar.style.width = `${percent}%`;
+        }
+
+        function update() {
+            if (isGameOver || isPaused) return; // Prevent logic updates if paused
+            
+            const now = Date.now();
+            gameTime = Math.floor((now - startTime) / 1000);
+            
+            // Format Time Display
+            const mins = Math.floor(gameTime / 60);
+            const secs = gameTime % 60;
+            timeDisplay.innerText = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+
+            // Player Movement
+            let dx = 0, dy = 0;
+            if (keys['KeyW'] || keys['ArrowUp']) dy -= 1;
+            if (keys['KeyS'] || keys['ArrowDown']) dy += 1;
+            if (keys['KeyA'] || keys['ArrowLeft']) dx -= 1;
+            if (keys['KeyD'] || keys['ArrowRight']) dx += 1;
+
+            if (dx !== 0 && dy !== 0) {
+                const length = Math.hypot(dx, dy);
+                dx /= length;
+                dy /= length;
+            }
+
+            player.x += dx * player.speed;
+            player.y += dy * player.speed;
+
+            // Auto Firing
+            if (now - lastFireTime > player.fireRate) {
+                fireProjectile();
+                lastFireTime = now;
+            }
+
+            // Spawn Enemies
+            const currentSpawnRate = Math.max(200, enemySpawnRate - (gameTime * 5));
+            if (now - lastSpawnTime > currentSpawnRate) {
+                spawnEnemy();
+                lastSpawnTime = now;
+            }
+
+            // Move Projectiles
+            for (let i = projectiles.length - 1; i >= 0; i--) {
+                let p = projectiles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life--;
+                
+                if (p.life <= 0) {
+                    projectiles.splice(i, 1);
+                    continue;
+                }
+
+                for (let j = enemies.length - 1; j >= 0; j--) {
+                    let e = enemies[j];
+                    if (getDist(p.x, p.y, e.x, e.y) < p.radius + e.radius) {
+                        e.hp -= p.damage;
+                        projectiles.splice(i, 1); 
+                        
+                        if (e.hp <= 0) {
+                            gems.push({ x: e.x, y: e.y, radius: 4, value: 5 });
+                            enemies.splice(j, 1);
+                        }
+                        break; 
+                    }
+                }
+            }
+
+            // Move Enemies & Check Collision
+            enemies.forEach(e => {
+                const angle = Math.atan2(player.y - e.y, player.x - e.x);
+                e.x += Math.cos(angle) * e.speed;
+                e.y += Math.sin(angle) * e.speed;
+
+                if (getDist(player.x, player.y, e.x, e.y) < player.radius + e.radius) {
+                    player.hp -= e.damage * 0.05; 
+                    if (player.hp <= 0) gameOver();
+                }
+            });
+
+            // Collect Gems
+            for (let i = gems.length - 1; i >= 0; i--) {
+                let g = gems[i];
+                const dist = getDist(player.x, player.y, g.x, g.y);
+                
+                if (dist < player.radius + 40) { 
+                    player.xp += g.value;
+                    gems.splice(i, 1);
+                    
+                    if (player.xp >= player.xpToNext) {
+                        levelUp();
+                    } else {
+                        updateXpBar();
+                    }
+                }
+            }
+        }
+
+        function draw() {
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.save();
+            ctx.translate(canvas.width / 2 - player.x, canvas.height / 2 - player.y);
+
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 2;
+            const gridSize = 100;
+            const startX = Math.floor((player.x - canvas.width / 2) / gridSize) * gridSize;
+            const startY = Math.floor((player.y - canvas.height / 2) / gridSize) * gridSize;
+            
+            ctx.beginPath();
+            for (let x = startX; x < startX + canvas.width + gridSize; x += gridSize) {
+                ctx.moveTo(x, startY);
+                ctx.lineTo(x, startY + canvas.height + gridSize * 2);
+            }
+            for (let y = startY; y < startY + canvas.height + gridSize; y += gridSize) {
+                ctx.moveTo(startX, y);
+                ctx.lineTo(startX + canvas.width + gridSize * 2, y);
+            }
+            ctx.stroke();
+
+            // Gems
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = "#eab308";
+            ctx.fillStyle = "#eab308";
+            gems.forEach(g => {
+                ctx.beginPath();
+                ctx.arc(g.x, g.y, g.radius, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // Enemies
+            ctx.shadowColor = "#f43f5e";
+            ctx.fillStyle = "#f43f5e";
+            enemies.forEach(e => {
+                ctx.beginPath();
+                ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // Projectiles
+            ctx.shadowColor = "#06b6d4";
+            ctx.fillStyle = "#f8fafc";
+            projectiles.forEach(p => {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // Player
+            ctx.shadowColor = player.color;
+            ctx.fillStyle = player.color;
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // HP Ring
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = "#f43f5e"; 
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, player.radius + 8, 0, Math.PI * 2);
+            ctx.stroke();
+            
+            ctx.strokeStyle = "#22c55e"; 
+            ctx.beginPath();
+            const hpRatio = Math.max(0, player.hp / player.maxHp);
+            ctx.arc(player.x, player.y, player.radius + 8, -Math.PI / 2, (-Math.PI / 2) + (Math.PI * 2 * hpRatio));
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function gameOver() {
+            isGameOver = true;
+            window.ArcadeStorage.setHighScore("survivor", gameTime);
+            finalTimeDisplay.innerText = timeDisplay.innerText;
+            overlayScreen.style.display = "block";
+        }
+
+        function resetGame() {
+            if (animationId) cancelAnimationFrame(animationId);
+            initGame();
+            gameLoop();
+        }
+
+        window.ArcadeControls.init({
+            instructions: [
+                "Move with WASD or arrow keys.",
+                "Weapons fire automatically at nearby enemies.",
+                "Collect yellow gems to level up and choose upgrades.",
+                "Survive as long as possible.",
+                "Esc pauses, R restarts, H opens this panel."
+            ],
+            onRestart: resetGame,
+            isPaused: () => isControlPaused,
+            onPauseToggle: () => {
+                if (isGameOver || levelUpScreen.style.display === "block") return isControlPaused;
+                isControlPaused = !isControlPaused;
+                isPaused = isControlPaused;
+                return isControlPaused;
+            }
+        });
+
+        function gameLoop() {
+            update();
+            draw();
+            if (!isGameOver) {
+                animationId = requestAnimationFrame(gameLoop);
+            }
+        }
+
+        initGame();
+        gameLoop();
+    </script>
+</body>
+</html>

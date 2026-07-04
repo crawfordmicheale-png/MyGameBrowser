@@ -1,0 +1,28 @@
+:root {
+    --bg-color: #0f172a;
+    --panel-bg: #1e293b;
+    --card-bg: #1e293b;
+    --panel-border: #334155;
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --accent-glow: #06b6d4;
+    --accent-danger: #f43f5e;
+    --accent-success: #22c55e;
+    --accent-warning: #eab308;
+    --accent-purple: #a855f7;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-main);
+}
+
+button {
+    font-family: inherit;
+}

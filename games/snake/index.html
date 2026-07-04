@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Snake</title>
+    <link rel="stylesheet" href="../../src/styles/base.css">
+    <link rel="stylesheet" href="../../src/styles/game-shell.css">
+    <style>
+        .game-page canvas {
+            border: 2px solid #06b6d4;
+            box-shadow: 0 0 20px rgba(6, 182, 212, 0.3);
+        }
+
+        .game-page .header {
+            width: 400px;
+        }
+
+        .game-page .arcade-controls {
+            width: 400px;
+        }
+
+        #score {
+            color: #06b6d4;
+            text-shadow: 0 0 10px rgba(6, 182, 212, 0.8);
+        }
+
+        .snake-overlay {
+            width: 320px;
+            border: 2px solid #06b6d4;
+            box-shadow: 0 0 24px rgba(6, 182, 212, 0.35);
+        }
+
+        .snake-overlay h2 {
+            color: #06b6d4;
+            text-shadow: 0 0 10px rgba(6, 182, 212, 0.8);
+        }
+
+        .mode-grid {
+            display: grid;
+            gap: 10px;
+            margin-top: 1rem;
+        }
+
+        .mode-button {
+            text-align: left;
+        }
+
+        .mode-button span {
+            display: block;
+            color: #cbd5e1;
+            font-size: 0.8rem;
+            font-weight: normal;
+            margin-top: 4px;
+        }
+
+        #countdown {
+            position: absolute;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            color: #f8fafc;
+            font-size: 5rem;
+            font-weight: bold;
+            text-shadow: 0 0 22px #06b6d4;
+            background: rgba(15, 23, 42, 0.35);
+            pointer-events: none;
+        }
+
+        #game-over h2 {
+            color: #f43f5e;
+            text-shadow: 0 0 10px rgba(244, 63, 94, 0.8);
+        }
+
+        #end-summary {
+            color: #cbd5e1;
+            line-height: 1.6;
+            margin-bottom: 1rem;
+            white-space: pre-line;
+        }
+
+        .lobby-btn {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body class="game-page">
+
+    <div class="header">
+        <span>NEON SNAKE</span>
+        <span id="score">0</span>
+    </div>
+
+    <div id="game-container">
+        <canvas id="gameCanvas" width="400" height="400"></canvas>
+
+        <div id="start-screen" class="screen-overlay snake-overlay">
+            <h2>SELECT MODE</h2>
+            <div class="mode-grid">
+                <button class="mode-button" onclick="selectMode('classic')">
+                    CLASSIC MODE
+                    <span>Pure snake: food, growth, walls, tail.</span>
+                </button>
+                <button class="mode-button" onclick="selectMode('obstacle')">
+                    OBSTACLE MODE
+                    <span>Random wall blocks turn the grid into a maze.</span>
+                </button>
+                <button class="mode-button" onclick="selectMode('speed')">
+                    SPEED MODE
+                    <span>The snake gets faster as your score rises.</span>
+                </button>
+                <button class="mode-button" onclick="selectMode('portal')">
+                    PORTAL MODE
+                    <span>Two portals teleport the snake across the board.</span>
+                </button>
+            </div>
+        </div>
+
+        <div id="countdown">3</div>
+        
+        <div id="game-over">
+            <h2>GAME OVER</h2>
+            <div id="end-summary"></div>
+            <button onclick="resetGame()">PLAY AGAIN</button>
+            <button onclick="showModeSelect()">CHANGE MODE</button>
+            <button class="lobby-btn" onclick="window.location.href='../../index.html'">BACK TO LOBBY</button>
+        </div>
+    </div>
+
+    <script src="../../src/arcade/storage.js"></script>
+    <script src="../../src/arcade/controls.js"></script>
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const scoreElement = document.getElementById("score");
+        const gameOverScreen = document.getElementById("game-over");
+        const startScreen = document.getElementById("start-screen");
+        const countdownScreen = document.getElementById("countdown");
+        const endSummary = document.getElementById("end-summary");
+
+        const gridSize = 20;
+        const tileCount = canvas.width / gridSize;
+        const modeLabels = {
+            classic: "Classic Mode",
+            obstacle: "Obstacle Mode",
+            speed: "Speed Mode",
+            portal: "Portal Mode"
+        };
+
+        let snake = [{ x: 10, y: 10 }];
+        let food = { x: 5, y: 5 };
+        let dx = 0;
+        let dy = 0;
+        let nextDx = 0;
+        let nextDy = 0;
+        let score = 0;
+        let gameLoop;
+        let countdownLoop;
+        let isGameOver = false;
+        let isPaused = false;
+        let isRoundActive = false;
+        let isCountingDown = false;
+        let currentMode = "classic";
+        let currentDelay = 100;
+        let obstacles = [];
+        let portals = [];
+        let particles = [];
+        let floatingTexts = [];
+        let foodPulse = 0;
+
+        function init() {
+            document.addEventListener("keydown", changeDirection);
+            showModeSelect();
+        }
+
+        function showModeSelect() {
+            stopTimers();
+            isGameOver = false;
+            isPaused = false;
+            isRoundActive = false;
+            isCountingDown = false;
+            score = 0;
+            scoreElement.innerText = score;
+            gameOverScreen.style.display = "none";
+            countdownScreen.style.display = "none";
+            startScreen.style.display = "block";
+            resetRoundState();
+            drawScene();
+        }
+
+        function selectMode(mode) {
+            currentMode = mode;
+            startRound();
+        }
+
+        function startRound() {
+            stopTimers();
+            resetRoundState();
+            startScreen.style.display = "none";
+            gameOverScreen.style.display = "none";
+            drawScene();
+            startCountdown();
+        }
+
+        function resetRoundState() {
+            snake = [{ x: 10, y: 10 }];
+            dx = 0;
+            dy = 0;
+            nextDx = 0;
+            nextDy = 0;
+            score = 0;
+            currentDelay = currentMode === "speed" ? 115 : 100;
+            obstacles = [];
+            portals = [];
+            particles = [];
+            floatingTexts = [];
+            foodPulse = 0;
+            isGameOver = false;
+            isPaused = false;
+            isRoundActive = false;
+            isCountingDown = false;
+            scoreElement.innerText = score;
+
+            if (currentMode === "obstacle") createObstacles();
+            if (currentMode === "portal") createPortals();
+            placeFood();
+        }
+
+        function stopTimers() {
+            clearInterval(gameLoop);
+            clearInterval(countdownLoop);
+        }
+
+        function startCountdown() {
+            let count = 3;
+            isCountingDown = true;
+            countdownScreen.innerText = count;
+            countdownScreen.style.display = "flex";
+
+            countdownLoop = setInterval(() => {
+                count--;
+                if (count > 0) {
+                    countdownScreen.innerText = count;
+                } else if (count === 0) {
+                    countdownScreen.innerText = "GO";
+                } else {
+                    clearInterval(countdownLoop);
+                    countdownScreen.style.display = "none";
+                    isCountingDown = false;
+                    isRoundActive = true;
+                    scheduleGameLoop();
+                }
+            }, 700);
+        }
+
+        function scheduleGameLoop() {
+            clearInterval(gameLoop);
+            gameLoop = setInterval(drawGame, currentDelay);
+        }
+
+        function updateSpeedMode() {
+            if (currentMode !== "speed") return;
+            const newDelay = Math.max(55, 115 - Math.floor(score / 30) * 8);
+            if (newDelay !== currentDelay) {
+                currentDelay = newDelay;
+                scheduleGameLoop();
+            }
+        }
+
+        function drawGame() {
+            if (isGameOver || isPaused || !isRoundActive) return;
+            moveSnake();
+            checkCollision();
+            if (isGameOver) return;
+            updateEffects();
+            drawScene();
+        }
+
+        function drawScene() {
+            clearScreen();
+            drawObstacles();
+            drawPortals();
+            drawFood();
+            drawSnake();
+            drawParticles();
+            drawFloatingTexts();
+        }
+
+        function clearScreen() {
+            ctx.fillStyle = "#1e293b";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.strokeStyle = "rgba(148, 163, 184, 0.08)";
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= tileCount; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * gridSize, 0);
+                ctx.lineTo(i * gridSize, canvas.height);
+                ctx.moveTo(0, i * gridSize);
+                ctx.lineTo(canvas.width, i * gridSize);
+                ctx.stroke();
+            }
+        }
+
+        function drawSnake() {
+            ctx.shadowBlur = 10;
+            snake.forEach((part, index) => {
+                ctx.shadowColor = index === 0 ? "#67e8f9" : "#06b6d4";
+                ctx.fillStyle = index === 0 ? "#22d3ee" : "#06b6d4";
+                ctx.fillRect(part.x * gridSize + 1, part.y * gridSize + 1, gridSize - 2, gridSize - 2);
+            });
+            ctx.shadowBlur = 0;
+        }
+
+        function drawFood() {
+            foodPulse += 0.22;
+            const sizeOffset = Math.sin(foodPulse) * 2;
+            const inset = 4 - sizeOffset / 2;
+
+            ctx.shadowBlur = 18;
+            ctx.shadowColor = "#f43f5e";
+            ctx.fillStyle = "#f43f5e";
+            ctx.fillRect(food.x * gridSize + inset, food.y * gridSize + inset, gridSize - inset * 2, gridSize - inset * 2);
+
+            ctx.fillStyle = "rgba(255,255,255,0.28)";
+            ctx.fillRect(food.x * gridSize + 6, food.y * gridSize + 5, 6, 3);
+            ctx.shadowBlur = 0;
+        }
+
+        function drawObstacles() {
+            if (obstacles.length === 0) return;
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = "#a855f7";
+            ctx.fillStyle = "#a855f7";
+            obstacles.forEach(block => {
+                ctx.fillRect(block.x * gridSize + 2, block.y * gridSize + 2, gridSize - 4, gridSize - 4);
+            });
+            ctx.shadowBlur = 0;
+        }
+
+        function drawPortals() {
+            if (portals.length !== 2) return;
+            portals.forEach((portal, index) => {
+                const color = index === 0 ? "#22c55e" : "#eab308";
+                const cx = portal.x * gridSize + gridSize / 2;
+                const cy = portal.y * gridSize + gridSize / 2;
+                ctx.shadowBlur = 16;
+                ctx.shadowColor = color;
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(cx, cy, 7 + Math.sin(foodPulse + index) * 2, 0, Math.PI * 2);
+                ctx.stroke();
+            });
+            ctx.shadowBlur = 0;
+            ctx.lineWidth = 1;
+        }
+
+        function drawParticles() {
+            particles.forEach(p => {
+                ctx.globalAlpha = Math.max(0, p.life / 24);
+                ctx.shadowBlur = 8;
+                ctx.shadowColor = p.color;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            ctx.globalAlpha = 1;
+            ctx.shadowBlur = 0;
+        }
+
+        function drawFloatingTexts() {
+            floatingTexts.forEach(t => {
+                ctx.globalAlpha = Math.max(0, t.life / 40);
+                ctx.shadowBlur = 8;
+                ctx.shadowColor = t.color;
+                ctx.fillStyle = t.color;
+                ctx.font = "bold 18px Segoe UI";
+                ctx.textAlign = "center";
+                ctx.fillText(t.text, t.x, t.y);
+            });
+            ctx.globalAlpha = 1;
+            ctx.textAlign = "start";
+            ctx.shadowBlur = 0;
+        }
+
+        function moveSnake() {
+            if (nextDx !== 0 || nextDy !== 0) {
+                dx = nextDx;
+                dy = nextDy;
+            }
+
+            if (dx === 0 && dy === 0) return;
+
+            let head = { x: snake[0].x + dx, y: snake[0].y + dy };
+            head = applyPortal(head);
+            snake.unshift(head);
+
+            if (head.x === food.x && head.y === food.y) {
+                score += 10;
+                scoreElement.innerText = score;
+                addFoodEffects(food.x, food.y);
+                placeFood();
+                updateSpeedMode();
+            } else {
+                snake.pop();
+            }
+        }
+
+        function applyPortal(head) {
+            if (currentMode !== "portal" || portals.length !== 2) return head;
+            const [a, b] = portals;
+            if (head.x === a.x && head.y === a.y) {
+                addFloatingText(b.x, b.y, "WARP", "#22c55e");
+                return { x: b.x, y: b.y };
+            }
+            if (head.x === b.x && head.y === b.y) {
+                addFloatingText(a.x, a.y, "WARP", "#eab308");
+                return { x: a.x, y: a.y };
+            }
+            return head;
+        }
+
+        function changeDirection(event) {
+            const LEFT_KEY = 37;
+            const RIGHT_KEY = 39;
+            const UP_KEY = 38;
+            const DOWN_KEY = 40;
+
+            const keyPressed = event.keyCode;
+            const goingUp = dy === -1;
+            const goingDown = dy === 1;
+            const goingRight = dx === 1;
+            const goingLeft = dx === -1;
+
+            if (keyPressed === LEFT_KEY && !goingRight) { nextDx = -1; nextDy = 0; }
+            if (keyPressed === UP_KEY && !goingDown) { nextDx = 0; nextDy = -1; }
+            if (keyPressed === RIGHT_KEY && !goingLeft) { nextDx = 1; nextDy = 0; }
+            if (keyPressed === DOWN_KEY && !goingUp) { nextDx = 0; nextDy = 1; }
+        }
+
+        function createObstacles() {
+            obstacles = [];
+            while (obstacles.length < 14) {
+                const block = randomCell();
+                if (!isReservedCell(block) && !cellInList(block, obstacles)) {
+                    obstacles.push(block);
+                }
+            }
+        }
+
+        function createPortals() {
+            portals = [];
+            while (portals.length < 2) {
+                const portal = randomCell();
+                if (!isReservedCell(portal) && !cellInList(portal, portals)) {
+                    portals.push(portal);
+                }
+            }
+        }
+
+        function placeFood() {
+            const openCells = [];
+            for (let x = 0; x < tileCount; x++) {
+                for (let y = 0; y < tileCount; y++) {
+                    const cell = { x, y };
+                    if (!cellInList(cell, snake) && !cellInList(cell, obstacles) && !cellInList(cell, portals)) {
+                        openCells.push(cell);
+                    }
+                }
+            }
+
+            if (openCells.length === 0) {
+                triggerGameOver();
+                return;
+            }
+
+            food = openCells[Math.floor(Math.random() * openCells.length)];
+        }
+
+        function randomCell() {
+            return {
+                x: Math.floor(Math.random() * tileCount),
+                y: Math.floor(Math.random() * tileCount)
+            };
+        }
+
+        function isReservedCell(cell) {
+            const startSafeZone = Math.abs(cell.x - 10) <= 3 && Math.abs(cell.y - 10) <= 3;
+            return startSafeZone || cellInList(cell, snake);
+        }
+
+        function cellInList(cell, list) {
+            return list.some(item => item.x === cell.x && item.y === cell.y);
+        }
+
+        function checkCollision() {
+            const head = snake[0];
+
+            if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount) {
+                triggerGameOver();
+                return;
+            }
+
+            if (cellInList(head, obstacles)) {
+                triggerGameOver();
+                return;
+            }
+
+            for (let i = 1; i < snake.length; i++) {
+                if (head.x === snake[i].x && head.y === snake[i].y) {
+                    triggerGameOver();
+                    return;
+                }
+            }
+        }
+
+        function addFoodEffects(x, y) {
+            const centerX = x * gridSize + gridSize / 2;
+            const centerY = y * gridSize + gridSize / 2;
+            addFloatingText(x, y, "+10", "#f43f5e");
+
+            for (let i = 0; i < 12; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 1 + Math.random() * 2.4;
+                particles.push({
+                    x: centerX,
+                    y: centerY,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    radius: 2 + Math.random() * 2,
+                    color: "#f43f5e",
+                    life: 18 + Math.random() * 12
+                });
+            }
+        }
+
+        function addFloatingText(x, y, text, color) {
+            floatingTexts.push({
+                x: x * gridSize + gridSize / 2,
+                y: y * gridSize + gridSize / 2,
+                text,
+                color,
+                life: 40,
+                vy: -0.8
+            });
+        }
+
+        function updateEffects() {
+            particles = particles.filter(p => p.life > 0);
+            particles.forEach(p => {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.03;
+                p.life--;
+            });
+
+            floatingTexts = floatingTexts.filter(t => t.life > 0);
+            floatingTexts.forEach(t => {
+                t.y += t.vy;
+                t.life--;
+            });
+        }
+
+        function triggerGameOver() {
+            if (isGameOver) return;
+
+            isGameOver = true;
+            isPaused = false;
+            isRoundActive = false;
+            stopTimers();
+
+            const bestScore = window.ArcadeStorage.setHighScore("snake", score, "snakeHighScore");
+            endSummary.textContent = `${modeLabels[currentMode]}\nScore: ${score}\nBest: ${bestScore}\nLength: ${snake.length}`;
+            gameOverScreen.style.display = "block";
+        }
+
+        function resetGame() {
+            startRound();
+        }
+
+        window.ArcadeControls.init({
+            instructions: [
+                "Choose a mode, then use the arrow keys to steer.",
+                "Eat food to grow and score 10 points.",
+                "Classic keeps the original rules.",
+                "Obstacle adds wall blocks, Speed gets faster, Portal adds teleport gates.",
+                "Esc pauses, R restarts the current mode, H opens this panel."
+            ],
+            onRestart: resetGame,
+            isPaused: () => isPaused,
+            onPauseToggle: () => {
+                if (isGameOver || !isRoundActive || isCountingDown) return false;
+                isPaused = !isPaused;
+                return isPaused;
+            }
+        });
+
+        init();
+    </script>
+</body>
+</html>

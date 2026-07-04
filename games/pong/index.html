@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cyber Pong</title>
+    <link rel="stylesheet" href="../../src/styles/base.css">
+    <link rel="stylesheet" href="../../src/styles/game-shell.css">
+    <style>
+        .score-container {
+            display: flex;
+            gap: 2rem;
+            font-size: 2rem;
+        }
+
+        #p1-score { color: #06b6d4; text-shadow: 0 0 10px rgba(6, 182, 212, 0.8); }
+        #p2-score { color: #f43f5e; text-shadow: 0 0 10px rgba(244, 63, 94, 0.8); }
+
+        canvas {
+            cursor: none; /* Hides the mouse pointer over the canvas */
+        }
+
+        .game-page #win-screen {
+            padding: 2rem 4rem;
+        }
+
+        h2 { margin: 0 0 1rem 0; font-size: 2rem; }
+        
+        .game-page button {
+            background-color: #f8fafc;
+            color: #0f172a;
+            display: inline-block;
+            width: auto;
+            text-transform: uppercase;
+        }
+
+        .game-page button:hover {
+            background-color: #f8fafc;
+            box-shadow: 0 0 15px #f8fafc;
+        }
+    </style>
+</head>
+<body class="game-page">
+
+    <div class="header">
+        <span>CYBER PONG</span>
+        <div class="score-container">
+            <span id="p1-score">0</span>
+            <span id="p2-score">0</span>
+        </div>
+    </div>
+
+    <div id="game-container">
+        <!-- 800x400 gives us a nice wide widescreen ratio -->
+        <canvas id="gameCanvas" width="800" height="400"></canvas>
+        
+        <div id="win-screen">
+            <h2 id="win-text">PLAYER WINS!</h2>
+            <button onclick="resetGame()">PLAY AGAIN</button>
+        </div>
+    </div>
+
+    <script src="../../src/arcade/storage.js"></script>
+    <script src="../../src/arcade/controls.js"></script>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const p1ScoreEl = document.getElementById('p1-score');
+        const p2ScoreEl = document.getElementById('p2-score');
+        const winScreen = document.getElementById('win-screen');
+        const winText = document.getElementById('win-text');
+
+        // Game Configuration
+        const PADDLE_WIDTH = 10;
+        const PADDLE_HEIGHT = 80;
+        const WINNING_SCORE = 5;
+        const INITIAL_BALL_SPEED = 7;
+
+        // State Variables
+        let ballX = 400;
+        let ballY = 200;
+        let ballSpeedX = INITIAL_BALL_SPEED;
+        let ballSpeedY = 4;
+
+        let paddle1Y = 160; // Player (Left)
+        let paddle2Y = 160; // AI (Right)
+
+        let player1Score = 0;
+        let player2Score = 0;
+        let showingWinScreen = false;
+        let isPaused = false;
+
+        // Track mouse position relative to canvas
+        function calculateMousePos(evt) {
+            let rect = canvas.getBoundingClientRect();
+            let root = document.documentElement;
+            let mouseX = evt.clientX - rect.left - root.scrollLeft;
+            let mouseY = evt.clientY - rect.top - root.scrollTop;
+            return { x: mouseX, y: mouseY };
+        }
+
+        canvas.addEventListener('mousemove', (evt) => {
+            let mousePos = calculateMousePos(evt);
+            // Center the paddle on the mouse
+            paddle1Y = mousePos.y - (PADDLE_HEIGHT / 2); 
+        });
+
+        function ballReset() {
+            if (player1Score >= WINNING_SCORE || player2Score >= WINNING_SCORE) {
+                showingWinScreen = true;
+                if (player1Score >= WINNING_SCORE) {
+                    window.ArcadeStorage.incrementWinCount("pong");
+                }
+                winText.innerText = player1Score >= WINNING_SCORE ? "YOU WIN!" : "AI WINS!";
+                winText.style.color = player1Score >= WINNING_SCORE ? "#06b6d4" : "#f43f5e";
+                winScreen.style.border = `2px solid ${player1Score >= WINNING_SCORE ? "#06b6d4" : "#f43f5e"}`;
+                winScreen.style.display = "block";
+            }
+
+            ballX = canvas.width / 2;
+            ballY = canvas.height / 2;
+            ballSpeedX = -ballSpeedX; // Serve to the player who just scored
+            ballSpeedY = 4 * (Math.random() > 0.5 ? 1 : -1); // Randomize vertical direction
+        }
+
+        function computerMovement() {
+            let paddle2YCenter = paddle2Y + (PADDLE_HEIGHT / 2);
+            // Ignore the ball if it's moving away from the AI to prevent jitter
+            if (ballSpeedX < 0) return; 
+
+            // Move AI paddle towards the ball with a max speed of 6 to make it beatable
+            if (paddle2YCenter < ballY - 25) {
+                paddle2Y += 6;
+            } else if (paddle2YCenter > ballY + 25) {
+                paddle2Y -= 6;
+            }
+        }
+
+        function moveEverything() {
+            if (showingWinScreen || isPaused) return;
+            
+            computerMovement();
+
+            ballX += ballSpeedX;
+            ballY += ballSpeedY;
+
+            // Left Wall Collision (AI Scores)
+            if (ballX < 0) {
+                if (ballY > paddle1Y && ballY < paddle1Y + PADDLE_HEIGHT) {
+                    ballSpeedX = -ballSpeedX;
+                    // Apply "english" (spin) based on where it hit the paddle
+                    let deltaY = ballY - (paddle1Y + PADDLE_HEIGHT / 2);
+                    ballSpeedY = deltaY * 0.25; 
+                } else {
+                    player2Score++; // Must be before ballReset()
+                    p2ScoreEl.innerText = player2Score;
+                    ballReset();
+                }
+            }
+            
+            // Right Wall Collision (Player Scores)
+            if (ballX > canvas.width) {
+                if (ballY > paddle2Y && ballY < paddle2Y + PADDLE_HEIGHT) {
+                    ballSpeedX = -ballSpeedX;
+                    let deltaY = ballY - (paddle2Y + PADDLE_HEIGHT / 2);
+                    ballSpeedY = deltaY * 0.25;
+                } else {
+                    player1Score++;
+                    p1ScoreEl.innerText = player1Score;
+                    ballReset();
+                }
+            }
+
+            // Top and Bottom Wall Collision (Bounce)
+            if (ballY < 0 || ballY > canvas.height) {
+                ballSpeedY = -ballSpeedY;
+            }
+        }
+
+        function drawNet() {
+            ctx.fillStyle = "#334155";
+            for (let i = 0; i < canvas.height; i += 40) {
+                ctx.fillRect(canvas.width / 2 - 1, i, 2, 20);
+            }
+        }
+
+        function drawEverything() {
+            // Clear screen
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            if (showingWinScreen) return;
+
+            drawNet();
+
+            // Draw Left Paddle (Cyan Player)
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = "#06b6d4";
+            ctx.fillStyle = "#06b6d4";
+            ctx.fillRect(0, paddle1Y, PADDLE_WIDTH, PADDLE_HEIGHT);
+
+            // Draw Right Paddle (Pink AI)
+            ctx.shadowColor = "#f43f5e";
+            ctx.fillStyle = "#f43f5e";
+            ctx.fillRect(canvas.width - PADDLE_WIDTH, paddle2Y, PADDLE_WIDTH, PADDLE_HEIGHT);
+
+            // Draw Ball (White with glow)
+            ctx.shadowColor = "#f8fafc";
+            ctx.fillStyle = "#f8fafc";
+            ctx.beginPath();
+            ctx.arc(ballX, ballY, 8, 0, Math.PI * 2, true);
+            ctx.fill();
+            
+            ctx.shadowBlur = 0; // Reset shadow so it doesn't leak
+        }
+
+        function gameLoop() {
+            moveEverything();
+            drawEverything();
+            requestAnimationFrame(gameLoop); // Smoother than setInterval
+        }
+
+        function resetGame() {
+            player1Score = 0;
+            player2Score = 0;
+            p1ScoreEl.innerText = "0";
+            p2ScoreEl.innerText = "0";
+            showingWinScreen = false;
+            isPaused = false;
+            winScreen.style.display = "none";
+            ballReset();
+        }
+
+        window.ArcadeControls.init({
+            instructions: [
+                "Move your mouse over the canvas to control the left paddle.",
+                "Score when the AI misses the ball.",
+                "First side to 5 points wins.",
+                "Esc pauses, R restarts, H opens this panel."
+            ],
+            onRestart: resetGame,
+            isPaused: () => isPaused,
+            onPauseToggle: () => {
+                if (showingWinScreen) return false;
+                isPaused = !isPaused;
+                return isPaused;
+            }
+        });
+
+        // Start the game loop
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>

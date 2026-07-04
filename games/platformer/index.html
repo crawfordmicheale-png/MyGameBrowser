@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cyber Leap</title>
+    <link rel="stylesheet" href="../../src/styles/base.css">
+    <link rel="stylesheet" href="../../src/styles/game-shell.css">
+    <style>
+        #score-display {
+            color: #eab308;
+            text-shadow: 0 0 10px rgba(234, 179, 8, 0.8);
+        }
+
+        #game-container {
+            width: 800px;
+            height: 600px;
+            border: 2px solid #334155;
+            border-radius: 8px;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+        }
+
+        .game-page canvas {
+            display: block;
+            background-color: #1e293b;
+            border: none;
+            border-radius: 0;
+            box-shadow: none;
+        }
+
+        .game-page #overlay-screen {
+            background: rgba(15, 23, 42, 0.95);
+            padding: 2rem 4rem;
+            border: 2px solid #06b6d4;
+            box-shadow: 0 0 20px rgba(6, 182, 212, 0.4);
+        }
+
+        h2 { margin: 0 0 1rem 0; font-size: 2.5rem; }
+    </style>
+</head>
+<body class="game-page">
+
+    <div class="header">
+        <span>CYBER LEAP</span>
+        <span>SCORE: <span id="score-display">0</span></span>
+    </div>
+
+    <div id="game-container">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        
+        <div id="overlay-screen">
+            <h2 id="end-title">LEVEL CLEARED</h2>
+            <button onclick="resetGame()">PLAY AGAIN</button>
+            <button class="lobby-btn" onclick="window.location.href='../../index.html'">BACK TO LOBBY</button>
+        </div>
+    </div>
+
+    <script src="../../src/arcade/storage.js"></script>
+    <script src="../../src/arcade/controls.js"></script>
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const overlayScreen = document.getElementById("overlay-screen");
+        const endTitle = document.getElementById("end-title");
+        const scoreDisplay = document.getElementById("score-display");
+
+        // Input Setup
+        let keys = {};
+        document.addEventListener('keydown', e => keys[e.code] = true);
+        document.addEventListener('keyup', e => keys[e.code] = false);
+
+        // Game State
+        let isGameOver = false;
+        let isPaused = false;
+        let animationId;
+        let cameraX = 0;
+        let score = 0;
+
+        // Physics Constants
+        const GRAVITY = 0.6;
+        const FRICTION = 0.8;
+        const JUMP_POWER = -12;
+        const SPEED = 5;
+
+        // Player Object
+        let player = {
+            x: 50, y: 300,
+            w: 30, h: 30,
+            vx: 0, vy: 0,
+            color: "#06b6d4",
+            isGrounded: false,
+            jumpsLeft: 1, 
+            canJumpInput: true 
+        };
+
+        // Level Design
+        const platforms = [
+            { x: 0, y: 550, w: 600, h: 50 },
+            { x: 800, y: 550, w: 1200, h: 50 },
+            { x: 300, y: 450, w: 100, h: 20 },
+            { x: 500, y: 350, w: 100, h: 20 },
+            { x: 700, y: 250, w: 100, h: 20 },
+            { x: 950, y: 200, w: 100, h: 20 }, 
+            { x: 1200, y: 400, w: 100, h: 20 },
+            { x: 1400, y: 300, w: 100, h: 20 },
+            { x: 1600, y: 350, w: 50, h: 200 }
+        ];
+
+        const lava = { x: 600, y: 560, w: 200, h: 40 };
+        const portal = { x: 1850, y: 450, w: 60, h: 100 };
+
+        // Coins (Neon Yellow)
+        const initialCoins = [
+            { x: 340, y: 410, w: 20, h: 20, collected: false },
+            { x: 540, y: 310, w: 20, h: 20, collected: false },
+            { x: 740, y: 210, w: 20, h: 20, collected: false },
+            { x: 990, y: 160, w: 20, h: 20, collected: false }, // High jump reward
+            { x: 1240, y: 360, w: 20, h: 20, collected: false },
+            { x: 1440, y: 260, w: 20, h: 20, collected: false }
+        ];
+        // Deep copy trick so we can reset cleanly
+        let coins = JSON.parse(JSON.stringify(initialCoins));
+
+        function isColliding(a, b) {
+            return a.x < b.x + b.w && a.x + a.w > b.x &&
+                   a.y < b.y + b.h && a.y + a.h > b.y;
+        }
+
+        function update() {
+            if (isGameOver || isPaused) return;
+
+            // 1. Horizontal Movement
+            if (keys['ArrowLeft'] || keys['KeyA']) {
+                player.vx = -SPEED;
+            } else if (keys['ArrowRight'] || keys['KeyD']) {
+                player.vx = SPEED;
+            } else {
+                player.vx *= FRICTION; 
+            }
+
+            player.x += player.vx;
+            if (player.x < 0) player.x = 0;
+
+            platforms.forEach(p => {
+                if (isColliding(player, p)) {
+                    if (player.vx > 0) player.x = p.x - player.w;
+                    else if (player.vx < 0) player.x = p.x + p.w;
+                    player.vx = 0;
+                }
+            });
+
+            // 2. Vertical Movement
+            player.vy += GRAVITY;
+            
+            let isJumpKeyPressed = keys['ArrowUp'] || keys['KeyW'] || keys['Space'];
+
+            if (isJumpKeyPressed && player.canJumpInput) {
+                if (player.isGrounded) {
+                    player.vy = JUMP_POWER;
+                    player.isGrounded = false;
+                    player.canJumpInput = false; 
+                } else if (player.jumpsLeft > 0) {
+                    player.vy = JUMP_POWER;
+                    player.jumpsLeft--; 
+                    player.canJumpInput = false; 
+                    
+                    player.color = "#f8fafc";
+                    setTimeout(() => { player.color = "#06b6d4"; }, 150);
+                }
+            }
+
+            if (!isJumpKeyPressed) {
+                player.canJumpInput = true;
+            }
+
+            player.y += player.vy;
+            player.isGrounded = false;
+
+            platforms.forEach(p => {
+                if (isColliding(player, p)) {
+                    if (player.vy > 0) {
+                        player.y = p.y - player.h;
+                        player.vy = 0;
+                        player.isGrounded = true;
+                        player.jumpsLeft = 1; 
+                    } else if (player.vy < 0) {
+                        player.y = p.y + p.h;
+                        player.vy = 0;
+                    }
+                }
+            });
+
+            // 3. Camera Scrolling
+            const targetCameraX = player.x - (canvas.width / 2) + (player.w / 2);
+            if (targetCameraX > 0 && targetCameraX > cameraX) {
+                cameraX = targetCameraX;
+            }
+
+            // 4. Hazards & Goal
+            if (player.y > canvas.height + 100) {
+                triggerEndScreen("YOU FELL", "#f43f5e");
+            }
+            
+            if (isColliding(player, lava)) {
+                triggerEndScreen("INCINERATED", "#f97316");
+            }
+
+            // Coin Collection
+            coins.forEach(c => {
+                if (!c.collected && isColliding(player, c)) {
+                    c.collected = true;
+                    score += 10;
+                    scoreDisplay.innerText = score;
+                }
+            });
+
+            if (isColliding(player, portal)) {
+                triggerEndScreen("LEVEL CLEARED!", "#22c55e");
+            }
+        }
+
+        function draw() {
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.save();
+            ctx.translate(-cameraX, 0);
+
+            // Lava
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = "#f97316";
+            ctx.fillStyle = "#f97316";
+            ctx.fillRect(lava.x, lava.y, lava.w, lava.h);
+
+            // Portal
+            ctx.shadowColor = "#22c55e";
+            ctx.fillStyle = "#22c55e";
+            ctx.globalAlpha = 0.8; 
+            ctx.fillRect(portal.x, portal.y, portal.w, portal.h);
+            ctx.globalAlpha = 1.0;
+
+            // Coins
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = "#eab308";
+            ctx.fillStyle = "#eab308";
+            
+            // Calculate a bobbing offset based on time
+            const bobbingOffset = Math.sin(Date.now() / 200) * 5; 
+            
+            coins.forEach(c => {
+                if (!c.collected) {
+                    ctx.beginPath();
+                    // Draw coin as a glowing circle
+                    ctx.arc(c.x + c.w/2, c.y + c.h/2 + bobbingOffset, c.w/2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+
+            // Platforms
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = "#a855f7";
+            ctx.fillStyle = "#a855f7";
+            platforms.forEach(p => {
+                ctx.fillRect(p.x, p.y, p.w, p.h);
+            });
+
+            // Player
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = player.color; 
+            ctx.fillStyle = player.color;
+            ctx.fillRect(player.x, player.y, player.w, player.h);
+
+            ctx.shadowBlur = 0; 
+            ctx.restore(); 
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+            if (!isGameOver) {
+                animationId = requestAnimationFrame(gameLoop);
+            }
+        }
+
+        function triggerEndScreen(msg, color) {
+            isGameOver = true;
+            isPaused = false;
+            window.ArcadeStorage.setHighScore("platformer", score);
+            endTitle.innerText = msg;
+            endTitle.style.color = color;
+            endTitle.style.textShadow = `0 0 15px ${color}`;
+            overlayScreen.style.borderColor = color;
+            overlayScreen.style.boxShadow = `0 0 30px ${color}80`;
+            overlayScreen.style.display = "block";
+        }
+
+        function resetGame() {
+            if (animationId) cancelAnimationFrame(animationId);
+            isGameOver = false;
+            isPaused = false;
+            score = 0;
+            scoreDisplay.innerText = score;
+            player.x = 50;
+            player.y = 300;
+            player.vx = 0;
+            player.vy = 0;
+            player.jumpsLeft = 1;
+            player.canJumpInput = true;
+            player.color = "#06b6d4";
+            cameraX = 0;
+            
+            // Reset all coins using the deep copy
+            coins = JSON.parse(JSON.stringify(initialCoins));
+            
+            overlayScreen.style.display = "none";
+            gameLoop();
+        }
+
+        window.ArcadeControls.init({
+            instructions: [
+                "Move with A/D or Left/Right arrows.",
+                "Jump with W, Up, or Space.",
+                "Collect coins and reach the green portal.",
+                "Avoid lava and falling.",
+                "Esc pauses, R restarts, H opens this panel."
+            ],
+            onRestart: resetGame,
+            isPaused: () => isPaused,
+            onPauseToggle: () => {
+                if (isGameOver) return false;
+                isPaused = !isPaused;
+                return isPaused;
+            }
+        });
+
+        // Start Game
+        gameLoop();
+    </script>
+</body>
+</html>

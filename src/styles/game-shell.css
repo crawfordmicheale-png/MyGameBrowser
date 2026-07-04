@@ -1,0 +1,147 @@
+body.game-page {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.game-page .header {
+    display: flex;
+    justify-content: space-between;
+    width: 800px;
+    margin-bottom: 10px;
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+
+.arcade-controls {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    width: 800px;
+    margin-bottom: 10px;
+}
+
+.game-page .arcade-control-btn {
+    display: inline-block;
+    width: auto;
+    min-width: 96px;
+    margin: 0;
+    padding: 8px 12px;
+    background-color: var(--panel-border);
+    color: var(--text-main);
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0;
+}
+
+.game-page .arcade-control-btn:hover {
+    background-color: var(--accent-glow);
+    color: var(--bg-color);
+}
+
+.game-page .arcade-help-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(15, 23, 42, 0.78);
+}
+
+.game-page .arcade-help-panel {
+    width: min(460px, 100%);
+    background: rgba(15, 23, 42, 0.96);
+    border: 2px solid var(--accent-glow);
+    border-radius: 12px;
+    box-shadow: 0 0 25px rgba(6, 182, 212, 0.35);
+    padding: 1.5rem;
+    text-align: left;
+}
+
+.game-page .arcade-help-panel h2 {
+    color: var(--accent-glow);
+    text-align: center;
+}
+
+.game-page .arcade-help-panel ul {
+    margin: 0 0 1.25rem;
+    padding-left: 1.2rem;
+    color: #cbd5e1;
+    line-height: 1.6;
+}
+
+.game-page .arcade-help-panel button {
+    margin-bottom: 0;
+}
+
+.game-page #game-container {
+    position: relative;
+}
+
+.game-page canvas {
+    background-color: var(--panel-bg);
+    border: 2px solid var(--panel-border);
+    border-radius: 8px;
+    box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
+}
+
+.game-page #overlay-screen,
+.game-page #game-over,
+.game-page #win-screen,
+.game-page .screen-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(15, 23, 42, 0.9);
+    padding: 2rem;
+    border-radius: 12px;
+    text-align: center;
+    display: none;
+}
+
+.game-page #overlay-screen,
+.game-page #game-over {
+    border: 2px solid var(--accent-danger);
+    box-shadow: 0 0 20px rgba(244, 63, 94, 0.4);
+}
+
+.game-page #win-screen {
+    border: 2px solid var(--text-main);
+    box-shadow: 0 0 20px rgba(248, 250, 252, 0.3);
+}
+
+.game-page h2 {
+    margin: 0 0 1rem 0;
+}
+
+.game-page button {
+    background-color: var(--accent-glow);
+    color: var(--bg-color);
+    border: none;
+    padding: 10px 20px;
+    font-size: 1rem;
+    font-weight: bold;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: block;
+    width: 100%;
+    margin-bottom: 10px;
+}
+
+.game-page button:hover {
+    background-color: var(--text-main);
+    box-shadow: 0 0 15px var(--accent-glow);
+}
+
+.game-page .lobby-btn {
+    background-color: var(--panel-border);
+    color: var(--text-main);
+}

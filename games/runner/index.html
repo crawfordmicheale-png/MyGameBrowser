@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Runner 3D - Bloom Edition</title>
+    
+    <!-- Core Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <!-- Post-Processing Scripts for Three.js r128 -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+    
+    <link rel="stylesheet" href="../../src/styles/base.css">
+    <link rel="stylesheet" href="../../src/styles/game-shell.css">
+    <style>
+        #score-display {
+            color: #06b6d4;
+            text-shadow: 0 0 10px rgba(6, 182, 212, 0.8);
+        }
+
+        #game-container {
+            width: 800px;
+            height: 600px;
+            border: 2px solid #334155;
+            border-radius: 8px;
+            box-shadow: 0 0 40px rgba(6, 182, 212, 0.2);
+            overflow: hidden;
+        }
+
+        .game-page canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            border: none;
+            border-radius: 0;
+            box-shadow: none;
+        }
+
+        .game-page #overlay-screen {
+            box-shadow: 0 0 30px rgba(244, 63, 94, 0.6);
+        }
+
+        h2 { margin: 0 0 1rem 0; font-size: 2rem; }
+    </style>
+</head>
+<body class="game-page">
+
+    <div class="header">
+        <span>NEON RUNNER 3D</span>
+        <span>DISTANCE: <span id="score-display">0</span>m</span>
+    </div>
+
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="overlay-screen">
+            <h2 id="end-title" style="color: #f43f5e; text-shadow: 0 0 15px #f43f5e;">CRASHED</h2>
+            <button onclick="resetGame()">RACE AGAIN</button>
+            <button class="lobby-btn" onclick="window.location.href='../../index.html'">BACK TO LOBBY</button>
+        </div>
+    </div>
+
+    <script src="../../src/arcade/storage.js"></script>
+    <script src="../../src/arcade/controls.js"></script>
+    <script>
+        const scoreDisplay = document.getElementById("score-display");
+        const overlayScreen = document.getElementById("overlay-screen");
+        const canvas = document.getElementById("gameCanvas");
+
+        // Game State
+        let isGameOver = false;
+        let isPaused = false;
+        let score = 0;
+        let speed = 0.5; 
+        let keys = {};
+        let animationId;
+
+        // --- THREE.JS SETUP ---
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.Fog(0x0f172a, 10, 50); 
+
+        const camera = new THREE.PerspectiveCamera(75, 800 / 600, 0.1, 1000);
+        camera.position.set(0, 3, 10); 
+        camera.lookAt(0, 0, -10);
+
+        const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+        renderer.setSize(800, 600);
+        renderer.setClearColor(0x0f172a); 
+
+        // --- NEW: POST-PROCESSING (BLOOM) ---
+        // 1. Create a composer
+        const composer = new THREE.EffectComposer(renderer);
+        
+        // 2. Add the base render pass (draws the raw scene)
+        const renderPass = new THREE.RenderPass(scene, camera);
+        composer.addPass(renderPass);
+        
+        // 3. Add the bloom pass
+        // Parameters: (Resolution, Strength, Radius, Threshold)
+        const bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(800, 600), 2.0, 0.5, 0.1);
+        composer.addPass(bloomPass);
+        // ------------------------------------
+
+        // --- PLAYER ---
+        const shipGeo = new THREE.TetrahedronGeometry(1);
+        const shipMat = new THREE.MeshBasicMaterial({ 
+            color: 0x06b6d4, 
+            wireframe: true 
+        });
+        const player = new THREE.Mesh(shipGeo, shipMat);
+        player.position.set(0, 0.5, 5); 
+        player.rotation.x = Math.PI / 4;
+        player.rotation.y = Math.PI / 4;
+        scene.add(player);
+
+        // --- ENVIRONMENT ---
+        const gridHelper = new THREE.GridHelper(100, 50, 0xa855f7, 0x334155);
+        gridHelper.position.y = -0.5;
+        scene.add(gridHelper);
+
+        let obstacles = [];
+        const obstacleGeo = new THREE.BoxGeometry(1.5, 1.5, 1.5);
+        const obstacleMat = new THREE.MeshBasicMaterial({ color: 0xf43f5e });
+
+        function spawnObstacle() {
+            const obs = new THREE.Mesh(obstacleGeo, obstacleMat);
+            obs.position.x = (Math.random() - 0.5) * 16; 
+            obs.position.y = 0.25;
+            obs.position.z = -50; 
+            scene.add(obs);
+            obstacles.push(obs);
+        }
+
+        // Input
+        document.addEventListener('keydown', e => keys[e.code] = true);
+        document.addEventListener('keyup', e => keys[e.code] = false);
+
+        // --- MAIN GAME LOOP ---
+        function update() {
+            if (isGameOver || isPaused) return;
+
+            score += 1;
+            if (score % 10 === 0) scoreDisplay.innerText = score;
+
+            speed += 0.0001; 
+
+            // Movement
+            if ((keys['ArrowLeft'] || keys['KeyA']) && player.position.x > -8) {
+                player.position.x -= 0.3;
+                player.rotation.z = -0.5; 
+            } else if ((keys['ArrowRight'] || keys['KeyD']) && player.position.x < 8) {
+                player.position.x += 0.3;
+                player.rotation.z = 0.5; 
+            } else {
+                player.rotation.z = 0; 
+            }
+
+            // Treadmill effect
+            gridHelper.position.z += speed;
+            if (gridHelper.position.z > 2) {
+                gridHelper.position.z = 0; 
+            }
+
+            // Spawning
+            if (Math.random() < 0.05 + (speed * 0.01)) {
+                spawnObstacle();
+            }
+
+            // Obstacle Movement & Collision
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                let obs = obstacles[i];
+                obs.position.z += speed; 
+                
+                const distance = player.position.distanceTo(obs.position);
+                if (distance < 1.5) {
+                    triggerEndScreen();
+                }
+
+                if (obs.position.z > 15) {
+                    scene.remove(obs);
+                    obstacles.splice(i, 1);
+                }
+            }
+        }
+
+        function draw() {
+            // NEW: Instead of renderer.render(), we use composer.render()
+            // This applies all the passes (including bloom) before showing the frame.
+            composer.render();
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+            if (!isGameOver) {
+                animationId = requestAnimationFrame(gameLoop);
+            }
+        }
+
+        function triggerEndScreen() {
+            isGameOver = true;
+            isPaused = false;
+            window.ArcadeStorage.setHighScore("runner", score);
+            overlayScreen.style.display = "block";
+        }
+
+        function resetGame() {
+            if (animationId) cancelAnimationFrame(animationId);
+            isGameOver = false;
+            isPaused = false;
+            score = 0;
+            speed = 0.5;
+            player.position.x = 0;
+            
+            obstacles.forEach(obs => scene.remove(obs));
+            obstacles = [];
+            
+            overlayScreen.style.display = "none";
+            gameLoop();
+        }
+
+        window.ArcadeControls.init({
+            instructions: [
+                "Move with A/D or Left/Right arrows.",
+                "Dodge red obstacles as long as possible.",
+                "Distance increases while you survive.",
+                "Esc pauses, R restarts, H opens this panel."
+            ],
+            onRestart: resetGame,
+            isPaused: () => isPaused,
+            onPauseToggle: () => {
+                if (isGameOver) return false;
+                isPaused = !isPaused;
+                return isPaused;
+            }
+        });
+
+        // Start Game
+        gameLoop();
+    </script>
+</body>
+</html>
