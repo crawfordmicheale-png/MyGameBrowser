@@ -188,117 +188,224 @@
         const ctx = canvas.getContext("2d");
         const levelDisplay = document.getElementById("level-display");
         const timeDisplay = document.getElementById("time-display");
+        const hpDisplay = document.getElementById("hp-display");
+        const scoreDisplay = document.getElementById("score-display");
+        const phaseDisplay = document.getElementById("phase-display");
         const xpBar = document.getElementById("xp-bar");
         const overlayScreen = document.getElementById("overlay-screen");
         const levelUpScreen = document.getElementById("level-up-screen");
         const finalTimeDisplay = document.getElementById("final-time");
+        const runSummary = document.getElementById("run-summary");
+        const upgradeChoices = document.getElementById("upgrade-choices");
+        const phaseBanner = document.getElementById("phase-banner");
 
-        // Input
         let keys = {};
-        document.addEventListener('keydown', e => keys[e.code] = true);
-        document.addEventListener('keyup', e => keys[e.code] = false);
+        document.addEventListener("keydown", event => keys[event.code] = true);
+        document.addEventListener("keyup", event => keys[event.code] = false);
 
-        // Core Game State
         let animationId;
         let isGameOver = false;
-        let isPaused = false; // Pause state for upgrades and standard controls
+        let isPaused = false;
         let isControlPaused = false;
-        
-        // Time tracking
-        let startTime;
-        let gameTime = 0; 
-        let pauseStartTime = 0; // Tracks when the game was paused to offset the clock
+        let startTime = 0;
+        let pauseStartTime = 0;
+        let lastFrameTime = 0;
+        let gameTime = 0;
+        let score = 0;
+        let kills = 0;
+        let nextEnemyId = 1;
+        let currentPhaseIndex = 0;
+        let lastSpawnTime = 0;
+        let lastFireTime = 0;
+        let nextBossTime = 60;
+        let phaseBannerTimer;
+        let player, enemies, projectiles, enemyProjectiles, gems, particles, floatingTexts;
 
-        // Entities
-        let player, enemies, projectiles, gems;
-        
-        // Progression State
-        let enemySpawnRate; 
-        let lastSpawnTime;
-        let lastFireTime;
+        const enemyTypes = {
+            basic: { name: "Basic Chaser", radius: 12, hp: 28, speed: 1.75, damage: 10, xp: 5, score: 10, color: "#f43f5e" },
+            fast: { name: "Fast Enemy", radius: 9, hp: 18, speed: 2.85, damage: 8, xp: 6, score: 14, color: "#06b6d4" },
+            tank: { name: "Tank Enemy", radius: 18, hp: 88, speed: 1.05, damage: 18, xp: 14, score: 34, color: "#a855f7" },
+            ranged: { name: "Ranged Enemy", radius: 13, hp: 46, speed: 1.25, damage: 8, xp: 12, score: 28, color: "#eab308", ranged: true, fireRate: 1700 },
+            boss: { name: "Mini-Boss", radius: 34, hp: 520, speed: 0.76, damage: 26, xp: 90, score: 320, color: "#f97316", boss: true }
+        };
+
+        const phases = [
+            { label: "I", title: "PHASE I - FIRST SWARM", time: 0, spawnRate: 1050, group: 1, types: ["basic"] },
+            { label: "II", title: "PHASE II - RUSH", time: 30, spawnRate: 780, group: 1, types: ["basic", "basic", "fast"] },
+            { label: "III", title: "PHASE III - ARMOR", time: 60, spawnRate: 650, group: 2, types: ["basic", "fast", "tank"] },
+            { label: "IV", title: "PHASE IV - CROSSFIRE", time: 90, spawnRate: 540, group: 2, types: ["basic", "fast", "tank", "ranged"] },
+            { label: "V", title: "PHASE V - NEON STORM", time: 135, spawnRate: 440, group: 3, types: ["fast", "tank", "ranged", "basic"] }
+        ];
+
+        const upgradeDefinitions = {
+            damage: { title: "Sharper Lasers", desc: "+10 projectile damage", max: 8, apply: () => { player.projDamage += 10; player.upgrades.damage++; } },
+            firerate: { title: "Overclock Blasters", desc: "Shoot 15% faster", max: 7, apply: () => { player.fireRate = Math.max(135, player.fireRate * 0.85); player.upgrades.firerate++; } },
+            speed: { title: "Thruster Boots", desc: "+0.45 move speed", max: 6, apply: () => { player.speed += 0.45; player.upgrades.speed++; } },
+            health: { title: "Reinforced Core", desc: "+25 max health and heal", max: 6, apply: () => { player.maxHp += 25; player.hp = Math.min(player.maxHp, player.hp + 50); player.upgrades.health++; } },
+            pickup: { title: "Magnet Field", desc: "+24 pickup radius", max: 5, apply: () => { player.pickupRadius += 24; player.upgrades.pickup++; } },
+            projectile: { title: "Twin Barrel", desc: "+1 projectile per volley", max: 4, apply: () => { player.projectileCount++; player.upgrades.projectile++; } },
+            pierce: { title: "Piercing Shot", desc: "Shots pass through +1 enemy", max: 3, apply: () => { player.pierce++; player.upgrades.pierce++; } },
+            orbit: { title: "Orbit Blade", desc: "Adds a rotating defensive blade", max: 3, apply: () => { player.orbitBlades++; player.upgrades.orbit++; } }
+        };
 
         function initGame() {
             player = {
-                x: 0, y: 0, 
+                x: 0, y: 0,
                 radius: 15,
                 speed: 4,
                 color: "#06b6d4",
                 hp: 100, maxHp: 100,
                 level: 1, xp: 0, xpToNext: 10,
-                fireRate: 800, 
+                fireRate: 800,
                 projSpeed: 10,
-                projDamage: 25
+                projDamage: 25,
+                pickupRadius: 58,
+                projectileCount: 1,
+                pierce: 0,
+                orbitBlades: 0,
+                orbitAngle: 0,
+                upgrades: { damage: 0, firerate: 0, speed: 0, health: 0, pickup: 0, projectile: 0, pierce: 0, orbit: 0 }
             };
 
             enemies = [];
             projectiles = [];
+            enemyProjectiles = [];
             gems = [];
+            particles = [];
+            floatingTexts = [];
+            keys = {};
 
-            enemySpawnRate = 1000; 
-            
             const now = Date.now();
+            startTime = now;
+            pauseStartTime = 0;
+            lastFrameTime = now;
             lastSpawnTime = now;
             lastFireTime = now;
-            startTime = now;
-            
+            gameTime = 0;
+            score = 0;
+            kills = 0;
+            nextEnemyId = 1;
+            currentPhaseIndex = 0;
+            nextBossTime = 60;
+
             isGameOver = false;
             isPaused = false;
             isControlPaused = false;
 
-            levelDisplay.innerText = player.level;
-            updateXpBar();
+            clearTimeout(phaseBannerTimer);
             overlayScreen.style.display = "none";
             levelUpScreen.style.display = "none";
+            showPhaseBanner(phases[currentPhaseIndex].title);
+            updateHud();
+            updateXpBar();
         }
 
         function getDist(x1, y1, x2, y2) {
             return Math.hypot(x2 - x1, y2 - y1);
         }
 
-        function spawnEnemy() {
-            const angle = Math.random() * Math.PI * 2;
-            const spawnRadius = 600; 
-            
-            const hpScale = 10 + (gameTime * 2);
-            const speedScale = 1.5 + (Math.random() * 1.5) + (gameTime * 0.02);
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
+        }
 
+        function updateHud() {
+            levelDisplay.innerText = player.level;
+            timeDisplay.innerText = formatTime(gameTime);
+            hpDisplay.innerText = Math.max(0, Math.ceil(player.hp));
+            scoreDisplay.innerText = score;
+            phaseDisplay.innerText = phases[currentPhaseIndex].label;
+        }
+
+        function updateXpBar() {
+            xpBar.style.width = `${Math.min(100, (player.xp / player.xpToNext) * 100)}%`;
+        }
+
+        function showPhaseBanner(text) {
+            phaseBanner.textContent = text;
+            phaseBanner.classList.add("visible");
+            clearTimeout(phaseBannerTimer);
+            phaseBannerTimer = setTimeout(() => phaseBanner.classList.remove("visible"), 1400);
+        }
+
+        function updatePhase() {
+            let nextPhase = currentPhaseIndex;
+            for (let i = phases.length - 1; i >= 0; i--) {
+                if (gameTime >= phases[i].time) {
+                    nextPhase = i;
+                    break;
+                }
+            }
+            if (nextPhase !== currentPhaseIndex) {
+                currentPhaseIndex = nextPhase;
+                showPhaseBanner(phases[currentPhaseIndex].title);
+            }
+        }
+
+        function spawnEnemy(type) {
+            const phase = phases[currentPhaseIndex];
+            const chosenType = type || phase.types[Math.floor(Math.random() * phase.types.length)];
+            const stats = enemyTypes[chosenType];
+            const angle = Math.random() * Math.PI * 2;
+            const spawnRadius = chosenType === "boss" ? 700 : 620;
+            const scale = chosenType === "boss" ? 1 + Math.floor(gameTime / 60) * 0.35 : 1 + gameTime * 0.018;
             enemies.push({
+                id: nextEnemyId++,
+                type: chosenType,
                 x: player.x + Math.cos(angle) * spawnRadius,
                 y: player.y + Math.sin(angle) * spawnRadius,
-                radius: 12,
-                hp: hpScale,
-                maxHp: hpScale,
-                speed: speedScale,
-                color: "#f43f5e",
-                damage: 10
+                radius: stats.radius,
+                hp: Math.ceil(stats.hp * scale),
+                maxHp: Math.ceil(stats.hp * scale),
+                speed: stats.speed + Math.min(1.1, gameTime * 0.006),
+                damage: stats.damage,
+                xp: stats.xp,
+                score: stats.score,
+                color: stats.color,
+                ranged: Boolean(stats.ranged),
+                boss: Boolean(stats.boss),
+                fireRate: stats.fireRate || 0,
+                lastShot: Date.now() + Math.random() * 800,
+                lastOrbitHit: 0
             });
+        }
+
+        function spawnMiniBoss() {
+            spawnEnemy("boss");
+            showPhaseBanner("MINI-BOSS INBOUND");
+            nextBossTime += 75;
         }
 
         function fireProjectile() {
             if (enemies.length === 0) return;
-
             let closest = null;
             let closestDist = Infinity;
-
-            enemies.forEach(e => {
-                let dist = getDist(player.x, player.y, e.x, e.y);
+            enemies.forEach(enemy => {
+                const dist = getDist(player.x, player.y, enemy.x, enemy.y);
                 if (dist < closestDist) {
                     closestDist = dist;
-                    closest = e;
+                    closest = enemy;
                 }
             });
+            if (!closest) return;
 
-            if (closest) {
-                const angle = Math.atan2(closest.y - player.y, closest.x - player.x);
+            const angle = Math.atan2(closest.y - player.y, closest.x - player.x);
+            const spread = player.projectileCount > 1 ? 0.18 : 0;
+            const start = -spread * (player.projectileCount - 1) / 2;
+            for (let i = 0; i < player.projectileCount; i++) {
+                const shotAngle = angle + start + spread * i;
                 projectiles.push({
                     x: player.x,
                     y: player.y,
-                    vx: Math.cos(angle) * player.projSpeed,
-                    vy: Math.sin(angle) * player.projSpeed,
+                    vx: Math.cos(shotAngle) * player.projSpeed,
+                    vy: Math.sin(shotAngle) * player.projSpeed,
                     radius: 5,
                     damage: player.projDamage,
+                    pierce: player.pierce,
+                    hitIds: {},
                     color: "#f8fafc",
-                    life: 100 
+                    life: 105
                 });
             }
         }
@@ -306,157 +413,300 @@
         function levelUp() {
             player.level++;
             player.xp -= player.xpToNext;
-            player.xpToNext = Math.floor(player.xpToNext * 1.5); 
-            
-            // Base stat bumps for leveling up
-            player.maxHp += 20;
-            player.hp = player.maxHp; 
-
-            levelDisplay.innerText = player.level;
+            player.xpToNext = Math.floor(player.xpToNext * 1.45);
+            player.hp = Math.min(player.maxHp, player.hp + 25);
+            updateHud();
             updateXpBar();
-
-            // --- NEW: Trigger Pause and Show Menu ---
-            isPaused = true;
-            pauseStartTime = Date.now(); // Record when we paused
+            buildUpgradeChoices();
+            pauseForOverlay();
             levelUpScreen.style.display = "block";
-            
-            // Clear input keys so the player doesn't keep running when unpaused
-            keys = {}; 
+            keys = {};
         }
 
-        // --- NEW: Apply the selected upgrade and resume ---
-        function selectUpgrade(type) {
-            if (type === 'damage') {
-                player.projDamage += 10;
-            } else if (type === 'speed') {
-                player.speed += 0.6;
-            } else if (type === 'firerate') {
-                // Reduces the cooldown time by 15%, capping at 150ms per shot
-                player.fireRate = Math.max(150, player.fireRate * 0.85); 
-            }
+        function buildUpgradeChoices() {
+            upgradeChoices.replaceChildren();
+            const available = Object.keys(upgradeDefinitions).filter(id => player.upgrades[id] < upgradeDefinitions[id].max);
+            shuffle(available).slice(0, 3).forEach(id => {
+                const upgrade = upgradeDefinitions[id];
+                const button = document.createElement("button");
+                button.type = "button";
+                button.className = "btn-purple upgrade-card";
+                button.innerHTML = `${upgrade.title}<span class="upgrade-desc">${upgrade.desc}</span>`;
+                button.addEventListener("click", () => selectUpgrade(id));
+                upgradeChoices.appendChild(button);
+            });
+        }
 
-            // Offset the game clock so the time spent in the menu doesn't count
-            startTime += (Date.now() - pauseStartTime);
-            
+        function shuffle(items) {
+            const copy = items.slice();
+            for (let i = copy.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [copy[i], copy[j]] = [copy[j], copy[i]];
+            }
+            return copy;
+        }
+
+        function selectUpgrade(type) {
+            const upgrade = upgradeDefinitions[type];
+            if (!upgrade) return;
+            upgrade.apply();
+            addFloatingText(player.x, player.y - 36, upgrade.title, "#a855f7");
+            updateHud();
             levelUpScreen.style.display = "none";
+            resumeFromOverlay();
+        }
+
+        function pauseForOverlay() {
+            if (!isPaused) pauseStartTime = Date.now();
+            isPaused = true;
+        }
+
+        function resumeFromOverlay() {
+            startTime += Date.now() - pauseStartTime;
+            lastFrameTime = Date.now();
             isPaused = isControlPaused;
         }
 
-        function updateXpBar() {
-            const percent = Math.min(100, (player.xp / player.xpToNext) * 100);
-            xpBar.style.width = `${percent}%`;
-        }
-
         function update() {
-            if (isGameOver || isPaused) return; // Prevent logic updates if paused
-            
+            if (isGameOver || isPaused) return;
             const now = Date.now();
+            const dt = Math.min(2, (now - lastFrameTime) / 16.67);
+            lastFrameTime = now;
             gameTime = Math.floor((now - startTime) / 1000);
-            
-            // Format Time Display
-            const mins = Math.floor(gameTime / 60);
-            const secs = gameTime % 60;
-            timeDisplay.innerText = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+            updatePhase();
 
-            // Player Movement
             let dx = 0, dy = 0;
-            if (keys['KeyW'] || keys['ArrowUp']) dy -= 1;
-            if (keys['KeyS'] || keys['ArrowDown']) dy += 1;
-            if (keys['KeyA'] || keys['ArrowLeft']) dx -= 1;
-            if (keys['KeyD'] || keys['ArrowRight']) dx += 1;
-
-            if (dx !== 0 && dy !== 0) {
+            if (keys.KeyW || keys.ArrowUp) dy -= 1;
+            if (keys.KeyS || keys.ArrowDown) dy += 1;
+            if (keys.KeyA || keys.ArrowLeft) dx -= 1;
+            if (keys.KeyD || keys.ArrowRight) dx += 1;
+            if (dx !== 0 || dy !== 0) {
                 const length = Math.hypot(dx, dy);
-                dx /= length;
-                dy /= length;
+                player.x += (dx / length) * player.speed * dt;
+                player.y += (dy / length) * player.speed * dt;
             }
 
-            player.x += dx * player.speed;
-            player.y += dy * player.speed;
-
-            // Auto Firing
             if (now - lastFireTime > player.fireRate) {
                 fireProjectile();
                 lastFireTime = now;
             }
 
-            // Spawn Enemies
-            const currentSpawnRate = Math.max(200, enemySpawnRate - (gameTime * 5));
-            if (now - lastSpawnTime > currentSpawnRate) {
-                spawnEnemy();
+            const phase = phases[currentPhaseIndex];
+            const spawnRate = Math.max(180, phase.spawnRate - gameTime * 3);
+            if (now - lastSpawnTime > spawnRate) {
+                for (let i = 0; i < phase.group; i++) spawnEnemy();
                 lastSpawnTime = now;
             }
+            if (gameTime >= nextBossTime && !enemies.some(enemy => enemy.boss)) spawnMiniBoss();
 
-            // Move Projectiles
+            updateProjectiles(dt);
+            updateEnemies(now, dt);
+            updateEnemyProjectiles(dt);
+            updateOrbitBlades(now, dt);
+            updateGems(dt);
+            updateEffects(dt);
+            updateHud();
+        }
+
+        function updateProjectiles(dt) {
             for (let i = projectiles.length - 1; i >= 0; i--) {
-                let p = projectiles[i];
-                p.x += p.vx;
-                p.y += p.vy;
-                p.life--;
-                
-                if (p.life <= 0) {
+                const projectile = projectiles[i];
+                projectile.x += projectile.vx * dt;
+                projectile.y += projectile.vy * dt;
+                projectile.life -= dt;
+                if (projectile.life <= 0) {
                     projectiles.splice(i, 1);
                     continue;
                 }
 
                 for (let j = enemies.length - 1; j >= 0; j--) {
-                    let e = enemies[j];
-                    if (getDist(p.x, p.y, e.x, e.y) < p.radius + e.radius) {
-                        e.hp -= p.damage;
-                        projectiles.splice(i, 1); 
-                        
-                        if (e.hp <= 0) {
-                            gems.push({ x: e.x, y: e.y, radius: 4, value: 5 });
-                            enemies.splice(j, 1);
-                        }
-                        break; 
-                    }
-                }
-            }
-
-            // Move Enemies & Check Collision
-            enemies.forEach(e => {
-                const angle = Math.atan2(player.y - e.y, player.x - e.x);
-                e.x += Math.cos(angle) * e.speed;
-                e.y += Math.sin(angle) * e.speed;
-
-                if (getDist(player.x, player.y, e.x, e.y) < player.radius + e.radius) {
-                    player.hp -= e.damage * 0.05; 
-                    if (player.hp <= 0) gameOver();
-                }
-            });
-
-            // Collect Gems
-            for (let i = gems.length - 1; i >= 0; i--) {
-                let g = gems[i];
-                const dist = getDist(player.x, player.y, g.x, g.y);
-                
-                if (dist < player.radius + 40) { 
-                    player.xp += g.value;
-                    gems.splice(i, 1);
-                    
-                    if (player.xp >= player.xpToNext) {
-                        levelUp();
-                    } else {
-                        updateXpBar();
+                    const enemy = enemies[j];
+                    if (projectile.hitIds[enemy.id]) continue;
+                    if (getDist(projectile.x, projectile.y, enemy.x, enemy.y) < projectile.radius + enemy.radius) {
+                        damageEnemy(enemy, projectile.damage, projectile.color);
+                        projectile.hitIds[enemy.id] = true;
+                        if (enemy.hp <= 0) killEnemy(enemy, j);
+                        if (projectile.pierce > 0) projectile.pierce--;
+                        else projectiles.splice(i, 1);
+                        break;
                     }
                 }
             }
         }
 
-        function draw() {
-            ctx.fillStyle = '#0f172a';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        function updateEnemies(now, dt) {
+            enemies.forEach(enemy => {
+                const dist = getDist(player.x, player.y, enemy.x, enemy.y);
+                const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
+                if (!enemy.ranged || dist > 250) {
+                    enemy.x += Math.cos(angle) * enemy.speed * dt;
+                    enemy.y += Math.sin(angle) * enemy.speed * dt;
+                }
+                if (enemy.ranged && now - enemy.lastShot > enemy.fireRate) {
+                    fireEnemyProjectile(enemy, angle);
+                    enemy.lastShot = now;
+                }
+                if (dist < player.radius + enemy.radius) damagePlayer(enemy.damage * 0.045 * dt);
+            });
+        }
 
+        function updateEnemyProjectiles(dt) {
+            for (let i = enemyProjectiles.length - 1; i >= 0; i--) {
+                const projectile = enemyProjectiles[i];
+                projectile.x += projectile.vx * dt;
+                projectile.y += projectile.vy * dt;
+                projectile.life -= dt;
+                if (getDist(player.x, player.y, projectile.x, projectile.y) < player.radius + projectile.radius) {
+                    damagePlayer(projectile.damage);
+                    enemyProjectiles.splice(i, 1);
+                } else if (projectile.life <= 0) {
+                    enemyProjectiles.splice(i, 1);
+                }
+            }
+        }
+
+        function updateOrbitBlades(now, dt) {
+            if (player.orbitBlades <= 0) return;
+            player.orbitAngle += 0.045 * dt;
+            const blades = getOrbitBladePositions();
+            enemies.forEach((enemy, index) => {
+                blades.forEach(blade => {
+                    if (now - enemy.lastOrbitHit < 300) return;
+                    if (getDist(blade.x, blade.y, enemy.x, enemy.y) < blade.radius + enemy.radius) {
+                        enemy.lastOrbitHit = now;
+                        damageEnemy(enemy, Math.max(14, player.projDamage * 0.55), "#22c55e");
+                        if (enemy.hp <= 0) killEnemy(enemy, index);
+                    }
+                });
+            });
+        }
+
+        function updateGems(dt) {
+            for (let i = gems.length - 1; i >= 0; i--) {
+                const gem = gems[i];
+                const dist = getDist(player.x, player.y, gem.x, gem.y);
+                if (dist < player.pickupRadius) {
+                    const angle = Math.atan2(player.y - gem.y, player.x - gem.x);
+                    const pull = 2.2 + (1 - dist / player.pickupRadius) * 7;
+                    gem.x += Math.cos(angle) * pull * dt;
+                    gem.y += Math.sin(angle) * pull * dt;
+                }
+                if (dist < player.radius + gem.radius + 8) {
+                    player.xp += gem.value;
+                    addFloatingText(gem.x, gem.y, `+${gem.value} XP`, "#eab308");
+                    gems.splice(i, 1);
+                    while (player.xp >= player.xpToNext) {
+                        levelUp();
+                        if (isPaused) break;
+                    }
+                    updateXpBar();
+                }
+            }
+        }
+
+        function updateEffects(dt) {
+            particles = particles.filter(particle => particle.life > 0);
+            particles.forEach(particle => {
+                particle.x += particle.vx * dt;
+                particle.y += particle.vy * dt;
+                particle.vx *= 0.98;
+                particle.vy *= 0.98;
+                particle.life -= dt;
+            });
+
+            floatingTexts = floatingTexts.filter(text => text.life > 0);
+            floatingTexts.forEach(text => {
+                text.y -= text.speed * dt;
+                text.life -= dt;
+            });
+        }
+
+        function damageEnemy(enemy, amount, color) {
+            enemy.hp -= amount;
+            addFloatingText(enemy.x, enemy.y - enemy.radius, Math.ceil(amount), color || "#f8fafc");
+        }
+
+        function damagePlayer(amount) {
+            player.hp -= amount;
+            if (player.hp <= 0) gameOver();
+        }
+
+        function killEnemy(enemy, index) {
+            if (!enemies[index] || enemies[index].id !== enemy.id) index = enemies.findIndex(item => item.id === enemy.id);
+            if (index < 0) return;
+            kills++;
+            const points = enemy.score + Math.floor(gameTime / 12);
+            score += points;
+            gems.push({ x: enemy.x, y: enemy.y, radius: enemy.boss ? 8 : 5, value: enemy.xp });
+            addFloatingText(enemy.x, enemy.y - enemy.radius - 8, `+${points}`, "#f8fafc");
+            spawnParticles(enemy.x, enemy.y, enemy.color, enemy.boss ? 44 : 16);
+            enemies.splice(index, 1);
+        }
+
+        function fireEnemyProjectile(enemy, angle) {
+            enemyProjectiles.push({
+                x: enemy.x,
+                y: enemy.y,
+                vx: Math.cos(angle) * 4.2,
+                vy: Math.sin(angle) * 4.2,
+                radius: 5,
+                damage: enemy.damage,
+                color: enemy.color,
+                life: 130
+            });
+        }
+
+        function getOrbitBladePositions() {
+            const positions = [];
+            const distance = 44;
+            for (let i = 0; i < player.orbitBlades; i++) {
+                const angle = player.orbitAngle + Math.PI * 2 * i / player.orbitBlades;
+                positions.push({ x: player.x + Math.cos(angle) * distance, y: player.y + Math.sin(angle) * distance, radius: 9 });
+            }
+            return positions;
+        }
+
+        function addFloatingText(x, y, text, color) {
+            floatingTexts.push({ x, y, text: String(text), color, life: 54, speed: 0.7 });
+        }
+
+        function spawnParticles(x, y, color, count) {
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 1 + Math.random() * 3.4;
+                particles.push({
+                    x,
+                    y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    radius: 2 + Math.random() * 2.5,
+                    color,
+                    life: 18 + Math.random() * 18
+                });
+            }
+        }
+
+        function draw() {
+            ctx.fillStyle = "#0f172a";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.save();
             ctx.translate(canvas.width / 2 - player.x, canvas.height / 2 - player.y);
+            drawGrid();
+            drawGems();
+            drawEnemies();
+            drawProjectiles();
+            drawOrbitBlades();
+            drawEffects();
+            drawPlayer();
+            ctx.restore();
+        }
 
-            ctx.strokeStyle = '#1e293b';
+        function drawGrid() {
+            ctx.strokeStyle = "#1e293b";
             ctx.lineWidth = 2;
             const gridSize = 100;
             const startX = Math.floor((player.x - canvas.width / 2) / gridSize) * gridSize;
             const startY = Math.floor((player.y - canvas.height / 2) / gridSize) * gridSize;
-            
             ctx.beginPath();
             for (let x = startX; x < startX + canvas.width + gridSize; x += gridSize) {
                 ctx.moveTo(x, startY);
@@ -467,86 +717,164 @@
                 ctx.lineTo(startX + canvas.width + gridSize * 2, y);
             }
             ctx.stroke();
+        }
 
-            // Gems
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = "#eab308";
-            ctx.fillStyle = "#eab308";
-            gems.forEach(g => {
+        function drawGems() {
+            gems.forEach(gem => {
+                ctx.shadowBlur = 12;
+                ctx.shadowColor = "#eab308";
+                ctx.fillStyle = "#eab308";
                 ctx.beginPath();
-                ctx.arc(g.x, g.y, g.radius, 0, Math.PI * 2);
+                ctx.arc(gem.x, gem.y, gem.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = "rgba(234, 179, 8, 0.18)";
+                ctx.beginPath();
+                ctx.arc(gem.x, gem.y, gem.radius + 7, 0, Math.PI * 2);
                 ctx.fill();
             });
+        }
 
-            // Enemies
-            ctx.shadowColor = "#f43f5e";
-            ctx.fillStyle = "#f43f5e";
-            enemies.forEach(e => {
+        function drawEnemies() {
+            enemies.forEach(enemy => {
+                ctx.shadowBlur = enemy.boss ? 24 : 12;
+                ctx.shadowColor = enemy.color;
+                ctx.fillStyle = enemy.color;
                 ctx.beginPath();
-                ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2);
+                ctx.arc(enemy.x, enemy.y, enemy.radius, 0, Math.PI * 2);
+                ctx.fill();
+                if (enemy.ranged) {
+                    ctx.fillStyle = "#0f172a";
+                    ctx.beginPath();
+                    ctx.arc(enemy.x, enemy.y, enemy.radius * 0.45, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                if (enemy.hp < enemy.maxHp || enemy.boss) {
+                    ctx.shadowBlur = 0;
+                    ctx.fillStyle = "rgba(15, 23, 42, 0.75)";
+                    ctx.fillRect(enemy.x - enemy.radius, enemy.y - enemy.radius - 10, enemy.radius * 2, 4);
+                    ctx.fillStyle = "#22c55e";
+                    ctx.fillRect(enemy.x - enemy.radius, enemy.y - enemy.radius - 10, enemy.radius * 2 * Math.max(0, enemy.hp / enemy.maxHp), 4);
+                }
+            });
+        }
+
+        function drawProjectiles() {
+            projectiles.forEach(projectile => {
+                ctx.shadowBlur = 14;
+                ctx.shadowColor = projectile.color;
+                ctx.fillStyle = projectile.color;
+                ctx.beginPath();
+                ctx.arc(projectile.x, projectile.y, projectile.radius, 0, Math.PI * 2);
                 ctx.fill();
             });
-
-            // Projectiles
-            ctx.shadowColor = "#06b6d4";
-            ctx.fillStyle = "#f8fafc";
-            projectiles.forEach(p => {
+            enemyProjectiles.forEach(projectile => {
+                ctx.shadowBlur = 12;
+                ctx.shadowColor = projectile.color;
+                ctx.fillStyle = projectile.color;
                 ctx.beginPath();
-                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.arc(projectile.x, projectile.y, projectile.radius, 0, Math.PI * 2);
                 ctx.fill();
             });
+        }
 
-            // Player
+        function drawOrbitBlades() {
+            getOrbitBladePositions().forEach(blade => {
+                ctx.shadowBlur = 16;
+                ctx.shadowColor = "#22c55e";
+                ctx.fillStyle = "#22c55e";
+                ctx.beginPath();
+                ctx.arc(blade.x, blade.y, blade.radius, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        function drawEffects() {
+            particles.forEach(particle => {
+                ctx.globalAlpha = Math.max(0, particle.life / 28);
+                ctx.shadowBlur = 8;
+                ctx.shadowColor = particle.color;
+                ctx.fillStyle = particle.color;
+                ctx.beginPath();
+                ctx.arc(particle.x, particle.y, particle.radius, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            ctx.globalAlpha = 1;
+
+            floatingTexts.forEach(text => {
+                ctx.globalAlpha = Math.max(0, text.life / 54);
+                ctx.shadowBlur = 8;
+                ctx.shadowColor = text.color;
+                ctx.fillStyle = text.color;
+                ctx.font = "bold 16px Segoe UI";
+                ctx.textAlign = "center";
+                ctx.fillText(text.text, text.x, text.y);
+            });
+            ctx.globalAlpha = 1;
+        }
+
+        function drawPlayer() {
+            ctx.shadowBlur = 16;
             ctx.shadowColor = player.color;
             ctx.fillStyle = player.color;
             ctx.beginPath();
             ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
             ctx.fill();
-
-            // HP Ring
             ctx.shadowBlur = 0;
-            ctx.strokeStyle = "#f43f5e"; 
+            ctx.strokeStyle = "#f43f5e";
             ctx.lineWidth = 3;
             ctx.beginPath();
             ctx.arc(player.x, player.y, player.radius + 8, 0, Math.PI * 2);
             ctx.stroke();
-            
-            ctx.strokeStyle = "#22c55e"; 
+            ctx.strokeStyle = "#22c55e";
             ctx.beginPath();
             const hpRatio = Math.max(0, player.hp / player.maxHp);
-            ctx.arc(player.x, player.y, player.radius + 8, -Math.PI / 2, (-Math.PI / 2) + (Math.PI * 2 * hpRatio));
+            ctx.arc(player.x, player.y, player.radius + 8, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * hpRatio);
             ctx.stroke();
-
-            ctx.restore();
         }
 
         function gameOver() {
+            if (isGameOver) return;
             isGameOver = true;
-            window.ArcadeStorage.setHighScore("survivor", gameTime);
-            finalTimeDisplay.innerText = timeDisplay.innerText;
+            isPaused = false;
+            isControlPaused = false;
+            clearTimeout(phaseBannerTimer);
+            phaseBanner.classList.remove("visible");
+            const bestTime = window.ArcadeStorage.setHighScore("survivor", gameTime);
+            finalTimeDisplay.innerText = formatTime(gameTime);
+            runSummary.textContent = `Best Time: ${formatTime(bestTime)}\nScore: ${score}\nLevel: ${player.level}\nKills: ${kills}\nPhase Reached: ${phases[currentPhaseIndex].label}`;
             overlayScreen.style.display = "block";
         }
 
         function resetGame() {
             if (animationId) cancelAnimationFrame(animationId);
+            clearTimeout(phaseBannerTimer);
             initGame();
             gameLoop();
         }
 
         window.ArcadeControls.init({
             instructions: [
-                "Move with WASD or arrow keys.",
+                "Move with WASD, arrow keys, or the mobile joystick.",
                 "Weapons fire automatically at nearby enemies.",
                 "Collect yellow gems to level up and choose upgrades.",
-                "Survive as long as possible.",
+                "Enemy phases add fast, tank, ranged, and mini-boss threats over time.",
                 "Esc pauses, R restarts, H opens this panel."
             ],
             onRestart: resetGame,
             isPaused: () => isControlPaused,
             onPauseToggle: () => {
                 if (isGameOver || levelUpScreen.style.display === "block") return isControlPaused;
-                isControlPaused = !isControlPaused;
-                isPaused = isControlPaused;
+                if (!isControlPaused) {
+                    isControlPaused = true;
+                    isPaused = true;
+                    pauseStartTime = Date.now();
+                    keys = {};
+                } else {
+                    isControlPaused = false;
+                    startTime += Date.now() - pauseStartTime;
+                    lastFrameTime = Date.now();
+                    isPaused = false;
+                }
                 return isControlPaused;
             }
         });
@@ -570,9 +898,7 @@
         function gameLoop() {
             update();
             draw();
-            if (!isGameOver) {
-                animationId = requestAnimationFrame(gameLoop);
-            }
+            if (!isGameOver) animationId = requestAnimationFrame(gameLoop);
         }
 
         initGame();
