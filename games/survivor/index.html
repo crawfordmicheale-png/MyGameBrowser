@@ -6,6 +6,7 @@
     <title>Neon Survivor</title>
     <link rel="stylesheet" href="../../src/styles/base.css">
     <link rel="stylesheet" href="../../src/styles/game-shell.css">
+    <link rel="stylesheet" href="../../src/styles/mobile-controls.css">
     <style>
         .game-page .header {
             font-size: 1.2rem;
@@ -160,12 +161,28 @@
         <!-- Level Up Screen -->
         <div id="level-up-screen" class="screen-overlay">
             <h2 style="color: #a855f7; text-shadow: 0 0 10px #a855f7;">LEVEL UP!</h2>
-            <div id="upgrade-choices" class="upgrade-grid"></div>
+            <div id="upgrade-choices" class="upgrade-grid">
+                <button class="btn-purple upgrade-card" onclick="selectUpgrade('damage')">
+                    Increase Damage
+                    <span class="upgrade-desc">Lasers hit 25% harder</span>
+                </button>
+                
+                <button class="btn-purple upgrade-card" onclick="selectUpgrade('speed')">
+                    Increase Speed
+                    <span class="upgrade-desc">Move 15% faster</span>
+                </button>
+                
+                <button class="btn-purple upgrade-card" onclick="selectUpgrade('firerate')">
+                    Overclock Blasters
+                    <span class="upgrade-desc">Shoot 15% faster</span>
+                </button>
+            </div>
         </div>
     </div>
 
     <script src="../../src/arcade/storage.js"></script>
     <script src="../../src/arcade/controls.js"></script>
+    <script src="../../src/arcade/mobileControls.js"></script>
     <script>
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
@@ -532,6 +549,22 @@
                 isPaused = isControlPaused;
                 return isControlPaused;
             }
+        });
+
+        window.ArcadeMobileControls.createVirtualJoystick({
+            onMove: (x, y) => {
+                keys.ArrowLeft = x < -0.28;
+                keys.ArrowRight = x > 0.28;
+                keys.ArrowUp = y < -0.28;
+                keys.ArrowDown = y > 0.28;
+            },
+            onEnd: () => {
+                keys.ArrowLeft = false;
+                keys.ArrowRight = false;
+                keys.ArrowUp = false;
+                keys.ArrowDown = false;
+            },
+            shouldHide: () => isGameOver || overlayScreen.style.display === "block" || levelUpScreen.style.display === "block"
         });
 
         function gameLoop() {

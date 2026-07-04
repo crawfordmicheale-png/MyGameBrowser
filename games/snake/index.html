@@ -6,6 +6,7 @@
     <title>Neon Snake</title>
     <link rel="stylesheet" href="../../src/styles/base.css">
     <link rel="stylesheet" href="../../src/styles/game-shell.css">
+    <link rel="stylesheet" href="../../src/styles/mobile-controls.css">
     <style>
         .game-page canvas {
             border: 2px solid #06b6d4;
@@ -130,6 +131,7 @@
 
     <script src="../../src/arcade/storage.js"></script>
     <script src="../../src/arcade/controls.js"></script>
+    <script src="../../src/arcade/mobileControls.js"></script>
     <script>
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
@@ -596,6 +598,14 @@
                 isPaused = !isPaused;
                 return isPaused;
             }
+        });
+
+        window.ArcadeMobileControls.createDPad({
+            onDirection: code => {
+                const keyCodes = { ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40 };
+                changeDirection({ keyCode: keyCodes[code] });
+            },
+            shouldHide: () => !isRoundActive || isGameOver || isCountingDown
         });
 
         init();

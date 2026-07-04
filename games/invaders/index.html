@@ -6,6 +6,7 @@
     <title>Galactic Invaders</title>
     <link rel="stylesheet" href="../../src/styles/base.css">
     <link rel="stylesheet" href="../../src/styles/game-shell.css">
+    <link rel="stylesheet" href="../../src/styles/mobile-controls.css">
     <style>
         #score-display {
             color: #22c55e;
@@ -102,6 +103,7 @@
 
     <script src="../../src/arcade/storage.js"></script>
     <script src="../../src/arcade/controls.js"></script>
+    <script src="../../src/arcade/mobileControls.js"></script>
     <script>
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
@@ -799,6 +801,15 @@ window.ArcadeControls.init({
         isPaused = !isPaused;
         return isPaused;
     }
+});
+
+window.ArcadeMobileControls.createActionButtons({
+    buttons: [
+        { label: "<", code: "ArrowLeft", ariaLabel: "Move left" },
+        { label: "FIRE", code: "Space", className: "fire", ariaLabel: "Fire" },
+        { label: ">", code: "ArrowRight", ariaLabel: "Move right" }
+    ],
+    shouldHide: () => isGameOver || overlayScreen.style.display === "block"
 });
 
 // Start Game

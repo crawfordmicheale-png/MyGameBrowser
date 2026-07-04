@@ -6,6 +6,7 @@
     <title>Cyber Pong</title>
     <link rel="stylesheet" href="../../src/styles/base.css">
     <link rel="stylesheet" href="../../src/styles/game-shell.css">
+    <link rel="stylesheet" href="../../src/styles/mobile-controls.css">
     <style>
         .score-container {
             display: flex;
@@ -62,6 +63,7 @@
 
     <script src="../../src/arcade/storage.js"></script>
     <script src="../../src/arcade/controls.js"></script>
+    <script src="../../src/arcade/mobileControls.js"></script>
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
@@ -245,6 +247,14 @@
                 isPaused = !isPaused;
                 return isPaused;
             }
+        });
+
+        window.ArcadeMobileControls.createVerticalDragControl({
+            canvas,
+            onMove: y => {
+                paddle1Y = Math.max(0, Math.min(canvas.height - PADDLE_HEIGHT, y - PADDLE_HEIGHT / 2));
+            },
+            shouldHide: () => showingWinScreen || winScreen.style.display === "block"
         });
 
         // Start the game loop
