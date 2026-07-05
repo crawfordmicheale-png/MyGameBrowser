@@ -63,6 +63,17 @@
             white-space: pre-line;
         }
 
+        .mini-save-summary {
+            padding: 8px 10px;
+            margin-bottom: 12px;
+            border: 1px solid rgba(253, 230, 138, 0.55);
+            border-radius: 8px;
+            background: rgba(15, 23, 42, 0.45);
+            color: #fde68a;
+            font-size: 0.9rem;
+            line-height: 1.45;
+        }
+
         .character-buttons,
         .shop-buttons {
             display: grid;
@@ -72,6 +83,23 @@
 
         .character-buttons {
             grid-template-columns: 1fr 1fr;
+        }
+
+        .character-buttons button,
+        .shop-buttons button {
+            min-height: 48px;
+            line-height: 1.25;
+        }
+
+        .character-buttons button.selected,
+        .shop-buttons button.equipped {
+            outline: 3px solid #fde68a;
+            box-shadow: 0 0 18px rgba(253, 230, 138, 0.45);
+        }
+
+        .shop-buttons button.locked {
+            background: #475569;
+            color: #e2e8f0;
         }
 
         #toast-message {
@@ -106,6 +134,20 @@
                 flex-wrap: wrap;
                 font-size: 0.88rem;
             }
+
+            .mini-overlay {
+                padding: 1.25rem;
+            }
+
+            .character-buttons {
+                grid-template-columns: 1fr;
+            }
+
+            .mobile-control-btn {
+                min-width: 70px;
+                min-height: 70px;
+                font-size: 1rem;
+            }
         }
     </style>
 </head>
@@ -129,9 +171,10 @@
         <div id="start-screen" class="screen-overlay mini-overlay">
             <h2>Mini World</h2>
             <div class="mini-copy">Choose Theo or Grey, collect shiny tickets, help Biscuit find bones, and visit the tiny shop for cozy styles.</div>
+            <div id="start-summary" class="mini-save-summary"></div>
             <div class="character-buttons">
-                <button type="button" onclick="selectCharacter('Theo')">PLAY AS THEO</button>
-                <button type="button" onclick="selectCharacter('Grey')">PLAY AS GREY</button>
+                <button id="theo-select" type="button" onclick="selectCharacter('Theo')">THEO<br><small>Sunny explorer</small></button>
+                <button id="grey-select" type="button" onclick="selectCharacter('Grey')">GREY<br><small>Cozy helper</small></button>
             </div>
             <button type="button" onclick="startGame()">START PLAYING</button>
             <button type="button" class="lobby-btn" onclick="window.location.href='../../index.html'">BACK TO LOBBY</button>
@@ -153,6 +196,7 @@
         const ctx = canvas.getContext("2d");
         const startScreen = document.getElementById("start-screen");
         const shopScreen = document.getElementById("shop-screen");
+        const startSummary = document.getElementById("start-summary");
         const shopCopy = document.getElementById("shop-copy");
         const shopButtons = document.getElementById("shop-buttons");
         const toastMessage = document.getElementById("toast-message");
@@ -161,6 +205,8 @@
         const ticketDisplay = document.getElementById("ticket-display");
         const questDisplay = document.getElementById("quest-display");
         const cosmeticDisplay = document.getElementById("cosmetic-display");
+        const theoSelectButton = document.getElementById("theo-select");
+        const greySelectButton = document.getElementById("grey-select");
 
         const progressKey = "arcade.progress.mini-world";
         const keys = {};
@@ -187,6 +233,16 @@
             playground: { x: 270, y: 58, w: 186, h: 130 },
             obby: { x: 500, y: 412, w: 220, h: 58 }
         };
+        const cozyDecorations = [
+            { type: "tree", x: 46, y: 174 },
+            { type: "tree", x: 778, y: 378 },
+            { type: "bench", x: 244, y: 64 },
+            { type: "bench", x: 562, y: 72 },
+            { type: "pinwheel", x: 474, y: 170 },
+            { type: "pinwheel", x: 118, y: 330 },
+            { type: "lantern", x: 742, y: 506 },
+            { type: "lantern", x: 42, y: 512 }
+        ];
 
         let player;
         let progress;
@@ -241,6 +297,7 @@
             if (player) player.name = name;
             showToast(`${name} is ready!`);
             updateHud();
+            updateStartSummary();
             draw();
         }
 
@@ -277,6 +334,7 @@
             createBones();
             createSparkleDots();
             updateHud();
+            updateStartSummary();
             showToast("Welcome to Mini World!");
         }
 
@@ -356,7 +414,8 @@
                 if (coin.collected || getDist(player.x, player.y, coin.x, coin.y) > player.radius + coin.radius) return;
                 coin.collected = true;
                 addTickets(coin.value);
-                addEffect(coin.x, coin.y, "#fde68a", `+${coin.value}`);
+                addTextEffect(coin.x, coin.y, "#fde68a", `+${coin.value} tickets`);
+                addSparkleBurst(coin.x, coin.y, "#fde68a", 6);
                 showToast("Shiny tickets!");
             });
 
@@ -364,7 +423,8 @@
                 if (bone.collected || getDist(player.x, player.y, bone.x, bone.y) > player.radius + bone.radius + 2) return;
                 bone.collected = true;
                 addTickets(3);
-                addEffect(bone.x, bone.y, "#f8fafc", "+bone");
+                addTextEffect(bone.x, bone.y, "#f8fafc", "+bone");
+                addSparkleBurst(bone.x, bone.y, "#f8fafc", 10);
                 showToast("Biscuit bone found!");
             });
 
@@ -372,7 +432,8 @@
                 bonesReturned = true;
                 questComplete = true;
                 addTickets(30);
-                addEffect(player.x, player.y - 20, "#fbbf24", "+30 quest");
+                addTextEffect(player.x, player.y - 24, "#fbbf24", "Quest complete! +30");
+                addQuestCelebration();
                 showToast("Biscuit says thank you!");
             }
 
@@ -404,13 +465,15 @@
 
         function renderShop() {
             const unlocked = progress.unlockedCosmetics || [];
-            shopCopy.textContent = `Tickets: ${progress.totalTickets}\nPick a cozy style to wear while you play.`;
+            shopCopy.textContent = `Tickets: ${progress.totalTickets}\nCurrent style: ${selectedCosmetic || "None"}\nUnlock a style, then wear it while you explore.`;
             shopButtons.innerHTML = "";
             shopItems.forEach(item => {
                 const button = document.createElement("button");
                 const owned = unlocked.includes(item.id);
+                const equipped = selectedCosmetic === item.label;
                 button.type = "button";
-                button.textContent = owned ? `Wear ${item.label}` : `Unlock ${item.label} - ${item.cost}`;
+                button.className = equipped ? "equipped" : (!owned && progress.totalTickets < item.cost ? "locked" : "");
+                button.textContent = equipped ? `${item.label} equipped` : owned ? `Wear ${item.label}` : `Unlock ${item.label} - ${item.cost} tickets`;
                 button.addEventListener("click", () => {
                     if (!owned && progress.totalTickets < item.cost) {
                         showToast("Need more tickets!");
@@ -425,6 +488,7 @@
                     saveProgress();
                     renderShop();
                     updateHud();
+                    updateStartSummary();
                     showToast(`${item.label} equipped!`);
                 });
                 shopButtons.appendChild(button);
@@ -432,13 +496,15 @@
 
             const noneButton = document.createElement("button");
             noneButton.type = "button";
-            noneButton.textContent = "Wear No Cosmetic";
+            noneButton.className = selectedCosmetic === "None" ? "equipped" : "";
+            noneButton.textContent = selectedCosmetic === "None" ? "No cosmetic equipped" : "Wear No Cosmetic";
             noneButton.addEventListener("click", () => {
                 progress.selectedCosmetic = "None";
                 selectedCosmetic = "None";
                 saveProgress();
                 renderShop();
                 updateHud();
+                updateStartSummary();
             });
             shopButtons.appendChild(noneButton);
         }
@@ -450,16 +516,34 @@
             bestDisplay.innerText = window.ArcadeStorage.getHighScore("mini-world");
             cosmeticDisplay.innerText = selectedCosmetic || "None";
             const found = bones.filter(bone => bone.collected).length;
-            if (bonesReturned) questDisplay.innerText = "Biscuit helped!";
+            if (bonesReturned) questDisplay.innerText = "Complete!";
             else if (found === 3) questDisplay.innerText = "Return to Biscuit";
             else questDisplay.innerText = `Bones ${found}/3`;
+            if (theoSelectButton && greySelectButton) {
+                theoSelectButton.classList.toggle("selected", selectedCharacter === "Theo");
+                greySelectButton.classList.toggle("selected", selectedCharacter === "Grey");
+            }
+        }
+
+        function updateStartSummary() {
+            if (!startSummary || !progress) return;
+            const unlockCount = progress.unlockedCosmetics.length;
+            startSummary.textContent = `Saved tickets: ${progress.totalTickets || 0} | Best tickets: ${window.ArcadeStorage.getHighScore("mini-world")}\nStyle: ${selectedCosmetic || "None"} | Unlocked styles: ${unlockCount}/3`;
         }
 
         function updateEffects(dt) {
             for (let i = effects.length - 1; i >= 0; i--) {
                 const effect = effects[i];
                 effect.life -= dt;
-                effect.y -= 0.45 * dt;
+                if (effect.type === "text") effect.y -= 0.45 * dt;
+                if (effect.type === "sparkle") {
+                    effect.x += effect.vx * dt;
+                    effect.y += effect.vy * dt;
+                    effect.vy += 0.01 * dt;
+                }
+                if (effect.type === "ring") {
+                    effect.radius += 0.7 * dt;
+                }
                 if (effect.life <= 0) effects.splice(i, 1);
             }
         }
@@ -476,8 +560,33 @@
             if (toastTimer <= 0) toastMessage.classList.remove("visible");
         }
 
-        function addEffect(x, y, color, text) {
-            effects.push({ x, y, color, text, life: 54 });
+        function addTextEffect(x, y, color, text) {
+            effects.push({ type: "text", x, y, color, text, life: 58 });
+        }
+
+        function addSparkleBurst(x, y, color, count) {
+            for (let i = 0; i < count; i++) {
+                const angle = Math.PI * 2 * i / count;
+                const speed = randomRange(0.7, 1.8);
+                effects.push({
+                    type: "sparkle",
+                    x,
+                    y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    radius: randomRange(2, 4),
+                    color,
+                    life: randomRange(28, 44)
+                });
+            }
+        }
+
+        function addQuestCelebration() {
+            const x = zones.biscuit.x + 68;
+            const y = zones.biscuit.y + 52;
+            effects.push({ type: "ring", x, y, radius: 18, color: "#fde68a", life: 70 });
+            addSparkleBurst(x, y, "#fde68a", 22);
+            addSparkleBurst(player.x, player.y, "#f9a8d4", 16);
         }
 
         function restartGame() {
@@ -533,6 +642,9 @@
             drawCoinPath();
             drawWalls();
             drawDecorations();
+            drawAreaSigns();
+            drawQuestBoard();
+            drawCosmeticPreview();
         }
 
         function drawZone(zone, color, label) {
@@ -579,6 +691,7 @@
         }
 
         function drawDecorations() {
+            drawCozyDecorations();
             drawDoghouse(86, 414);
             drawShopStand(704, 102);
             drawSlide(338, 120);
@@ -587,6 +700,77 @@
             ctx.font = "bold 13px Segoe UI";
             ctx.textAlign = "center";
             ctx.fillText("Collect tickets, find bones, and visit the shop!", canvas.width / 2, 28);
+        }
+
+        function drawCozyDecorations() {
+            cozyDecorations.forEach(item => {
+                if (item.type === "tree") drawTree(item.x, item.y);
+                if (item.type === "bench") drawBench(item.x, item.y);
+                if (item.type === "pinwheel") drawPinwheel(item.x, item.y);
+                if (item.type === "lantern") drawYardLantern(item.x, item.y);
+            });
+            drawSandbox(214, 134);
+            drawTicketArch(620, 176);
+        }
+
+        function drawAreaSigns() {
+            drawSign(706, 56, "Shop", "Styles");
+            drawSign(108, 354, "Biscuit Quest", "3 Bones");
+            drawSign(362, 62, "Playground", "Hop + Slide");
+            drawSign(620, 206, "Coin Trail", "Follow gold");
+        }
+
+        function drawSign(x, y, title, subtitle) {
+            ctx.save();
+            ctx.fillStyle = "#7c2d12";
+            ctx.fillRect(x - 4, y + 22, 8, 25);
+            ctx.fillStyle = "#fef3c7";
+            ctx.strokeStyle = "#92400e";
+            ctx.lineWidth = 2;
+            roundedRect(x - 48, y, 96, 32, 7, true, true);
+            ctx.fillStyle = "#0f172a";
+            ctx.font = "bold 11px Segoe UI";
+            ctx.textAlign = "center";
+            ctx.fillText(title, x, y + 13);
+            ctx.font = "10px Segoe UI";
+            ctx.fillText(subtitle, x, y + 26);
+            ctx.restore();
+        }
+
+        function drawQuestBoard() {
+            const found = bones.filter(bone => bone.collected).length;
+            ctx.save();
+            ctx.fillStyle = bonesReturned ? "rgba(253, 230, 138, 0.45)" : "rgba(15, 23, 42, 0.38)";
+            ctx.strokeStyle = bonesReturned ? "#fde68a" : "#f97316";
+            ctx.lineWidth = 2;
+            roundedRect(34, 482, 156, 42, 10, true, true);
+            ctx.fillStyle = "#f8fafc";
+            ctx.font = "bold 12px Segoe UI";
+            ctx.textAlign = "left";
+            ctx.fillText(bonesReturned ? "Quest Complete!" : "Biscuit Bones", 48, 499);
+            for (let i = 0; i < 3; i++) {
+                ctx.globalAlpha = i < found ? 1 : 0.35;
+                drawBone(62 + i * 32, 514);
+            }
+            ctx.globalAlpha = 1;
+            ctx.restore();
+        }
+
+        function drawCosmeticPreview() {
+            if (!progress || !progress.unlockedCosmetics.length) return;
+            ctx.save();
+            ctx.fillStyle = "rgba(15, 23, 42, 0.34)";
+            ctx.strokeStyle = "#fde68a";
+            ctx.lineWidth = 2;
+            roundedRect(650, 152, 132, 54, 10, true, true);
+            ctx.fillStyle = "#fef3c7";
+            ctx.font = "bold 11px Segoe UI";
+            ctx.textAlign = "center";
+            ctx.fillText("Style Preview", 716, 168);
+            if (progress.unlockedCosmetics.includes("redHat")) drawMiniHat(684, 188);
+            if (progress.unlockedCosmetics.includes("blueTrail")) drawMiniTrail(716, 188);
+            if (progress.unlockedCosmetics.includes("lanternGlow")) drawMiniGlow(750, 188);
+            ctx.restore();
         }
 
         function drawSparkles() {
@@ -625,7 +809,15 @@
             bones.forEach(bone => {
                 if (bone.collected) return;
                 bone.bob += 0.04;
-                drawBone(bone.x, bone.y + Math.sin(bone.bob) * 2);
+                const y = bone.y + Math.sin(bone.bob) * 2;
+                ctx.save();
+                ctx.globalAlpha = 0.35 + Math.sin(bone.bob * 2) * 0.15;
+                ctx.fillStyle = "#fef3c7";
+                ctx.beginPath();
+                ctx.arc(bone.x, y, 22, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+                drawBone(bone.x, y);
             });
         }
 
@@ -710,11 +902,23 @@
 
         function drawEffects() {
             effects.forEach(effect => {
-                ctx.globalAlpha = Math.max(0, effect.life / 54);
+                ctx.globalAlpha = Math.min(1, Math.max(0, effect.life / 54));
                 ctx.fillStyle = effect.color;
-                ctx.font = "bold 16px Segoe UI";
-                ctx.textAlign = "center";
-                ctx.fillText(effect.text, effect.x, effect.y);
+                if (effect.type === "sparkle") {
+                    ctx.beginPath();
+                    ctx.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                } else if (effect.type === "ring") {
+                    ctx.strokeStyle = effect.color;
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2);
+                    ctx.stroke();
+                } else {
+                    ctx.font = "bold 16px Segoe UI";
+                    ctx.textAlign = "center";
+                    ctx.fillText(effect.text, effect.x, effect.y);
+                }
             });
             ctx.globalAlpha = 1;
         }
@@ -831,6 +1035,135 @@
                 ctx.fill();
                 ctx.restore();
             });
+        }
+
+        function drawTree(x, y) {
+            ctx.save();
+            ctx.fillStyle = "#7c2d12";
+            ctx.fillRect(x - 5, y + 12, 10, 24);
+            ctx.fillStyle = "#15803d";
+            ctx.beginPath();
+            ctx.arc(x, y + 8, 24, 0, Math.PI * 2);
+            ctx.arc(x - 16, y + 18, 18, 0, Math.PI * 2);
+            ctx.arc(x + 16, y + 18, 18, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#22c55e";
+            ctx.beginPath();
+            ctx.arc(x + 8, y + 2, 5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function drawBench(x, y) {
+            ctx.save();
+            ctx.fillStyle = "#92400e";
+            roundedRect(x - 34, y, 68, 10, 4, true, false);
+            roundedRect(x - 30, y + 16, 60, 10, 4, true, false);
+            ctx.strokeStyle = "#451a03";
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(x - 24, y + 26);
+            ctx.lineTo(x - 30, y + 40);
+            ctx.moveTo(x + 24, y + 26);
+            ctx.lineTo(x + 30, y + 40);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function drawPinwheel(x, y) {
+            ctx.save();
+            ctx.strokeStyle = "#f8fafc";
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(x, y + 8);
+            ctx.lineTo(x, y + 38);
+            ctx.stroke();
+            const blades = ["#f97316", "#60a5fa", "#f9a8d4", "#fde047"];
+            blades.forEach((color, index) => {
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+                const angle = index * Math.PI / 2;
+                ctx.lineTo(x + Math.cos(angle - 0.35) * 18, y + Math.sin(angle - 0.35) * 18);
+                ctx.lineTo(x + Math.cos(angle + 0.35) * 18, y + Math.sin(angle + 0.35) * 18);
+                ctx.closePath();
+                ctx.fill();
+            });
+            ctx.fillStyle = "#f8fafc";
+            ctx.beginPath();
+            ctx.arc(x, y, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function drawYardLantern(x, y) {
+            ctx.save();
+            ctx.fillStyle = "#7c2d12";
+            ctx.fillRect(x - 3, y, 6, 28);
+            ctx.fillStyle = "rgba(253, 230, 138, 0.22)";
+            ctx.beginPath();
+            ctx.arc(x, y - 4, 20, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#fde68a";
+            roundedRect(x - 8, y - 14, 16, 18, 5, true, false);
+            ctx.strokeStyle = "#92400e";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x - 8, y - 14, 16, 18);
+            ctx.restore();
+        }
+
+        function drawSandbox(x, y) {
+            ctx.save();
+            ctx.fillStyle = "#d97706";
+            roundedRect(x - 48, y - 24, 96, 48, 10, true, false);
+            ctx.fillStyle = "#fde68a";
+            roundedRect(x - 38, y - 16, 76, 32, 10, true, false);
+            ctx.fillStyle = "#60a5fa";
+            ctx.beginPath();
+            ctx.arc(x + 18, y - 2, 8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function drawTicketArch(x, y) {
+            ctx.save();
+            ctx.strokeStyle = "#fde68a";
+            ctx.lineWidth = 5;
+            ctx.beginPath();
+            ctx.arc(x, y, 34, Math.PI, 0);
+            ctx.stroke();
+            ctx.fillStyle = "#facc15";
+            for (let i = 0; i < 5; i++) {
+                ctx.beginPath();
+                ctx.arc(x - 30 + i * 15, y - 28 + Math.abs(i - 2) * 3, 4, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        function drawMiniHat(x, y) {
+            ctx.fillStyle = "#ef4444";
+            roundedRect(x - 10, y - 8, 20, 9, 4, true, false);
+            ctx.fillRect(x + 4, y, 12, 3);
+        }
+
+        function drawMiniTrail(x, y) {
+            ctx.fillStyle = "rgba(96, 165, 250, 0.7)";
+            ctx.beginPath();
+            ctx.arc(x - 6, y, 7, 0, Math.PI * 2);
+            ctx.arc(x + 6, y, 5, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawMiniGlow(x, y) {
+            ctx.fillStyle = "rgba(253, 230, 138, 0.65)";
+            ctx.beginPath();
+            ctx.arc(x, y, 12, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#fef3c7";
+            ctx.beginPath();
+            ctx.arc(x, y, 5, 0, Math.PI * 2);
+            ctx.fill();
         }
 
         function roundedRect(x, y, w, h, radius, fill, stroke) {
