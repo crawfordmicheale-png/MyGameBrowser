@@ -318,6 +318,31 @@
             white-space: nowrap;
         }
 
+        .mastery-line {
+            color: #f6d56e;
+            font-size: 0.72rem;
+            margin-top: 4px;
+        }
+
+        .unlock-list {
+            display: grid;
+            gap: 4px;
+            margin-top: 8px;
+            color: #e9d5ff;
+            font-size: 0.72rem;
+        }
+
+        .unlock-list span {
+            display: block;
+        }
+
+        .upgrade-rank {
+            display: block;
+            color: #f6d56e;
+            font-size: 0.72rem;
+            margin-top: 5px;
+        }
+
         .selected-character-label {
             color: #f6d56e;
             margin-bottom: 12px;
@@ -421,19 +446,19 @@
         <div id="level-up-screen" class="screen-overlay">
             <h2 style="color: #f6d56e; text-shadow: 0 0 10px #a855f7;">LEVEL UP</h2>
             <div id="upgrade-choices" class="upgrade-grid">
-                <button class="btn-purple upgrade-card" onclick="selectUpgrade('damage')">
-                    Increase Damage
-                    <span class="upgrade-desc">Lasers hit 25% harder</span>
+                <button class="btn-purple upgrade-card" onclick="selectUpgrade('spellpower_sigil')">
+                    Spellpower Sigil
+                    <span class="upgrade-desc">+10 spell damage.</span>
                 </button>
                 
-                <button class="btn-purple upgrade-card" onclick="selectUpgrade('speed')">
-                    Increase Speed
-                    <span class="upgrade-desc">Move 15% faster</span>
+                <button class="btn-purple upgrade-card" onclick="selectUpgrade('swiftstep_charm')">
+                    Swiftstep Charm
+                    <span class="upgrade-desc">+0.45 move speed.</span>
                 </button>
                 
-                <button class="btn-purple upgrade-card" onclick="selectUpgrade('firerate')">
-                    Overclock Blasters
-                    <span class="upgrade-desc">Shoot 15% faster</span>
+                <button class="btn-purple upgrade-card" onclick="selectUpgrade('quickcast_ember')">
+                    Quickcast Ember
+                    <span class="upgrade-desc">Cast 15% faster.</span>
                 </button>
             </div>
         </div>
@@ -548,6 +573,10 @@
         const witchAssetDefinitions = flattenWitchAssetManifest(witchAssetManifest);
         const spellIconDataUrls = {};
         let witchAssetsReady = false;
+        const upgradeIconAssets = {};
+        let upgradeIconsReady = false;
+        const MASTERY_STORAGE_KEY = "survivorCharacterMasteryV1";
+        const MASTERY_THRESHOLDS = [0, 100, 250, 500, 900];
 
         // Data-driven caster roster. Balance lives here so characters can be tuned safely later.
         const playerRoster = [
@@ -704,6 +733,42 @@
         let selectedCharacterId = playerCharacterChoices[0].id;
         let runStarted = false;
 
+        // Upgrade icon mapping. Misspelled filenames are preserved to keep static paths GitHub Pages friendly.
+        const UPGRADE_ICON_PATHS = {
+            spellpower_sigil: "assets/spellpower_sigil.png",
+            quickcast_ember: "assets/quickcast_ember.png",
+            swiftstep_charm: "assets/swiftstep_charm.png",
+            vital_surge: "assets/vital_surge.png",
+            magnet_charm: "assets/magnet_charm.png",
+            twin_volley_rune: "assets/twin_volley_rune.png",
+            piercers_mark: "assets/piercers_mark.png",
+            guardian_orb: "assets/moonlight_orb.png",
+            volatile_flask: "assets/volitile_flask.png",
+            brewmasters_belt: "assets/brewmasters_belt.png",
+            lingering_vapors: "assets/lingering_vapors.png",
+            unstable_mixture: "assets/unstable_mixture.png",
+            living_grimoire: "assets/living_grimoire.png",
+            forbidden_footnotes: "assets/forbidden_footnoes.png",
+            inkbound_pierce: "assets/inkbound_pierce.png",
+            moon_script_thesis: "assets/moonscript_thesis.png",
+            cats_claw_hex: "assets/cats_claw_slash.png",
+            nine_lives_flicker: "assets/nine_lives_flicker.png",
+            pounce_rhythm: "assets/pounce_rythm.png",
+            lucky_whiskers: "assets/lucky_whiskers.png",
+            briar_snare: "assets/briar_snare.png",
+            herbal_ward: "assets/herbal_ward.png",
+            wildwood_reach: "assets/wildwood_reach.png",
+            bloom_after_battle: "assets/bloom_after_battle.png",
+            shard_focus: "assets/shard_focus.png",
+            fracture_burst: "assets/fracture_burst.png",
+            frozen_edge: "assets/frozen_edge.png",
+            prism_volley: "assets/prism_volley.png",
+            lantern_rot: "assets/lantern_rot.png",
+            old_bone_charm: "assets/old_bone_charm.png",
+            swampblood_tonic: "assets/swampblood_tonic.png",
+            curse_pulse: "assets/curse_pulse.png"
+        };
+
         function preloadWitchAssets() {
             const loaders = Object.entries(witchAssetDefinitions).map(([key, definition]) => new Promise(resolve => {
                 const image = new Image();
@@ -764,19 +829,48 @@
             });
         }
 
+        function preloadUpgradeIcons() {
+            const loaders = Object.entries(UPGRADE_ICON_PATHS).map(([id, path]) => new Promise(resolve => {
+                const image = new Image();
+                image.onload = () => {
+                    upgradeIconAssets[id] = image;
+                    resolve({ key: id, ok: true });
+                };
+                image.onerror = () => {
+                    console.warn(`[Witchlight Survivor] Missing upgrade icon: ${id} (${path})`);
+                    resolve({ key: id, ok: false });
+                };
+                image.src = path;
+            }));
+
+            return Promise.all(loaders).then(results => {
+                upgradeIconsReady = results.some(result => result.ok);
+                const missing = results.filter(result => !result.ok).length;
+                if (missing) console.warn(`[Witchlight Survivor] ${missing} upgrade icons failed to load; rune fallbacks remain active.`);
+                return results;
+            });
+        }
+
         function preloadGameAssets() {
-            return Promise.all([preloadWitchAssets(), preloadCharacterAssets(), preloadGroundTexture()]).then(results => {
+            return Promise.all([preloadWitchAssets(), preloadCharacterAssets(), preloadGroundTexture(), preloadUpgradeIcons()]).then(results => {
                 const characterResults = results[1] || [];
                 const groundResult = results[2];
+                const upgradeResults = results[3] || [];
                 const missingCharacters = characterResults.filter(result => !result.ok).length;
                 if (missingCharacters) console.warn(`[Witchlight Survivor] ${missingCharacters} character assets failed to load; shape fallbacks remain active.`);
                 if (groundResult && !groundResult.ok) console.warn("[Witchlight Survivor] Ground texture failed to load; fallback floor remains active.");
+                const missingUpgrades = upgradeResults.filter(result => !result.ok).length;
+                if (missingUpgrades) console.warn(`[Witchlight Survivor] ${missingUpgrades} upgrade icons failed to load; card fallbacks remain active.`);
                 return results;
             });
         }
 
         function getCharacterAsset(id) {
             return characterAssets[id] || null;
+        }
+
+        function getUpgradeIcon(id) {
+            return upgradeIconAssets[id] || null;
         }
 
         function flattenWitchAssetManifest(manifest) {
@@ -845,6 +939,61 @@
             return playerRoster.find(character => character.id === selectedCharacterId) || playerRoster[0];
         }
 
+        function loadMasteryData() {
+            try {
+                const parsed = JSON.parse(localStorage.getItem(MASTERY_STORAGE_KEY) || "{}");
+                return parsed && typeof parsed === "object" ? parsed : {};
+            } catch (error) {
+                console.warn("[Witchlight Survivor] Could not read character mastery; starting fresh.", error);
+                return {};
+            }
+        }
+
+        function saveMasteryData(data) {
+            try {
+                localStorage.setItem(MASTERY_STORAGE_KEY, JSON.stringify(data));
+            } catch (error) {
+                console.warn("[Witchlight Survivor] Could not save character mastery.", error);
+            }
+        }
+
+        function calculateMasteryLevel(xp) {
+            let level = 1;
+            for (let i = 0; i < MASTERY_THRESHOLDS.length; i++) {
+                if (xp >= MASTERY_THRESHOLDS[i]) level = i + 1;
+            }
+            return Math.min(5, level);
+        }
+
+        function getCharacterMastery(characterId) {
+            const data = loadMasteryData();
+            const entry = data[characterId] || {};
+            const masteryXp = Math.max(0, Number(entry.masteryXp) || 0);
+            return { masteryXp, masteryLevel: calculateMasteryLevel(masteryXp) };
+        }
+
+        function getNextMasteryThreshold(masteryLevel) {
+            return MASTERY_THRESHOLDS[Math.min(masteryLevel, MASTERY_THRESHOLDS.length - 1)];
+        }
+
+        function awardCharacterMastery(reason) {
+            if (!player || player.masteryAwarded) return 0;
+            const bonus = (defeatedMiniBosses > 0 ? 100 : 0) + (defeatedFinalBoss ? 250 : 0);
+            const earned = Math.max(1, Math.floor(gameTime * 2 + kills * 3 + player.level * 10 + bonus));
+            const data = loadMasteryData();
+            const current = data[player.spriteId] || { masteryXp: 0, masteryLevel: 1 };
+            const masteryXp = (Number(current.masteryXp) || 0) + earned;
+            data[player.spriteId] = { masteryXp, masteryLevel: calculateMasteryLevel(masteryXp) };
+            saveMasteryData(data);
+            player.masteryAwarded = true;
+            console.info(`[Witchlight Survivor] ${player.characterName} earned ${earned} mastery XP (${reason}).`);
+            return earned;
+        }
+
+        function getCharacterUpgradeIds(characterId) {
+            return Object.keys(UPGRADE_REGISTRY).filter(id => UPGRADE_REGISTRY[id].appliesTo === characterId);
+        }
+
         function formatPercent(value) {
             return `${Math.round(value * 100)}%`;
         }
@@ -865,7 +1014,11 @@
                 const classLabel = document.createElement("span");
                 classLabel.className = "character-class";
                 classLabel.textContent = choice.className;
-                button.append(image, label, classLabel);
+                const mastery = getCharacterMastery(choice.id);
+                const masteryLabel = document.createElement("span");
+                masteryLabel.className = "mastery-line";
+                masteryLabel.textContent = mastery.masteryLevel >= 5 ? "Mastered" : `Mastery Lv ${mastery.masteryLevel}`;
+                button.append(image, label, classLabel, masteryLabel);
                 button.addEventListener("click", () => selectCharacter(choice.id));
                 characterGrid.appendChild(button);
             });
@@ -876,12 +1029,23 @@
         function selectCharacter(id) {
             selectedCharacterId = id;
             const choice = getSelectedCharacterConfig();
+            const mastery = getCharacterMastery(choice.id);
+            const nextThreshold = getNextMasteryThreshold(mastery.masteryLevel);
+            const progressText = mastery.masteryLevel >= 5 ? "Mastered" : `${mastery.masteryXp}/${nextThreshold} XP`;
+            const unlocks = getCharacterUpgradeIds(choice.id)
+                .map(upgradeId => {
+                    const upgrade = UPGRADE_REGISTRY[upgradeId];
+                    const unlocked = mastery.masteryLevel >= upgrade.requiredMasteryLevel;
+                    return `<span>${unlocked ? "Unlocked" : "Locked"} Lv ${upgrade.requiredMasteryLevel}: ${upgrade.name}</span>`;
+                })
+                .join("");
             selectedCharacterLabel.textContent = `Selected: ${choice.displayName}`;
             characterDetail.innerHTML = `
                 <h3>${choice.displayName} <span style="color:#d8b4fe;">- ${choice.className}</span></h3>
                 <p>${choice.shortBio}</p>
                 <p><strong>Starting Spell:</strong> ${choice.startingSpell}</p>
                 <p><strong>Passive:</strong> ${choice.passiveName} - ${choice.passiveDescription}</p>
+                <p><strong>Mastery:</strong> Level ${mastery.masteryLevel} (${progressText})</p>
                 <div class="stat-row">
                     <span class="stat-pill">HP ${choice.maxHealth}</span>
                     <span class="stat-pill">Move ${formatPercent(choice.moveSpeedMult)}</span>
@@ -892,6 +1056,7 @@
                     <span class="stat-pill">Crit ${formatPercent(choice.critChance)}</span>
                     <span class="stat-pill">Luck ${formatPercent(choice.luck)}</span>
                 </div>
+                <div class="unlock-list">${unlocks}</div>
             `;
             Array.from(characterGrid.children).forEach((button, index) => {
                 button.classList.toggle("selected", playerCharacterChoices[index].id === id);
@@ -933,8 +1098,10 @@
         let lastFireTime = 0;
         let nextBossTime = 60;
         let bossSpawned = false;
+        let defeatedMiniBosses = 0;
+        let defeatedFinalBoss = false;
         let phaseBannerTimer;
-        let player, enemies, projectiles, enemyProjectiles, gems, particles, floatingTexts;
+        let player, enemies, projectiles, enemyProjectiles, gems, hazards, particles, floatingTexts;
 
         const enemyTypes = {
             basic: { name: "Basic Chaser", tier: "common", radius: 12, hp: 28, speed: 1.75, damage: 10, xp: 5, score: 10, color: "#f43f5e" },
@@ -953,16 +1120,170 @@
             { label: "V", title: "PHASE V - NEON STORM", time: 135, spawnRate: 440, group: 3, types: ["fast", "tank", "ranged", "basic"] }
         ];
 
-        const upgradeDefinitions = {
-            damage: { title: "Arcane Blast", desc: "+10 spell damage", iconKey: "arcane_blast", slotKey: "spell_slot_1", max: 8, apply: () => { player.projDamage += 10; player.upgrades.damage++; } },
-            firerate: { title: "Cursed Fire", desc: "Cast 15% faster", iconKey: "cursed_fire", slotKey: "spell_slot_2", max: 7, apply: () => { player.fireRate = Math.max(135, player.fireRate * 0.85); player.upgrades.firerate++; } },
-            speed: { title: "Moonstep Charm", desc: "+0.45 move speed", iconKey: "moonlight_orb", slotKey: "spell_slot_3", max: 6, apply: () => { player.speed += 0.45; player.upgrades.speed++; } },
-            health: { title: "Soul Drain", desc: "+25 max health and heal", iconKey: "soul_drain", slotKey: "spell_slot_4", max: 6, apply: () => { player.maxHp += 25; player.hp = Math.min(player.maxHp, player.hp + 50 * (player.potionHealMult || 1)); player.upgrades.health++; } },
-            pickup: { title: "Potion Mastery", desc: "+24 pickup radius", iconKey: "potion_mastery", slotKey: "spell_slot_5", max: 5, apply: () => { player.pickupRadius += 24; player.upgrades.pickup++; } },
-            projectile: { title: "Crystal Spikes", desc: "+1 projectile per volley", iconKey: "crystal_spikes", slotKey: "spell_slot_1", max: 4, apply: () => { player.projectileCount++; player.upgrades.projectile++; } },
-            pierce: { title: "Piercing Rune", desc: "Shots pass through +1 enemy", iconKey: "arcane_blast", slotKey: "spell_slot_2", max: 3, apply: () => { player.pierce++; player.upgrades.pierce++; } },
-            orbit: { title: "Moonlight Orb", desc: "Adds a rotating defensive orb", iconKey: "moonlight_orb", slotKey: "spell_slot_3", max: 3, apply: () => { player.orbitBlades++; player.upgrades.orbit++; } }
+        // Central upgrade registry. Level-up cards, icons, descriptions, ranks, and effects all read from here.
+        const UPGRADE_REGISTRY = {
+            spellpower_sigil: {
+                id: "spellpower_sigil", name: "Spellpower Sigil", icon: UPGRADE_ICON_PATHS.spellpower_sigil,
+                description: "+10 spell damage.", type: "shared", maxRank: 10, currentRank: 0, appliesTo: "all", requiredMasteryLevel: 1, slotKey: "spell_slot_1",
+                apply(p) { p.projDamage += 10; p.spellDamageBonus = (p.spellDamageBonus || 0) + 10; }
+            },
+            quickcast_ember: {
+                id: "quickcast_ember", name: "Quickcast Ember", icon: UPGRADE_ICON_PATHS.quickcast_ember,
+                description: "Cast 15% faster.", type: "shared", maxRank: 5, currentRank: 0, appliesTo: "all", requiredMasteryLevel: 1, slotKey: "spell_slot_2",
+                apply(p) { p.fireRate = Math.max(135, p.fireRate * 0.85); }
+            },
+            swiftstep_charm: {
+                id: "swiftstep_charm", name: "Swiftstep Charm", icon: UPGRADE_ICON_PATHS.swiftstep_charm,
+                description: "+0.45 move speed.", type: "shared", maxRank: 5, currentRank: 0, appliesTo: "all", requiredMasteryLevel: 1, slotKey: "spell_slot_3",
+                apply(p) { p.speed += 0.45; }
+            },
+            vital_surge: {
+                id: "vital_surge", name: "Vital Surge", icon: UPGRADE_ICON_PATHS.vital_surge,
+                description: "+25 max health and heal 25.", type: "shared", maxRank: 5, currentRank: 0, appliesTo: "all", requiredMasteryLevel: 1, slotKey: "spell_slot_4",
+                apply(p) { p.maxHp += 25; p.hp = Math.min(p.maxHp, p.hp + 25 * (p.potionHealMult || 1)); }
+            },
+            magnet_charm: {
+                id: "magnet_charm", name: "Magnet Charm", icon: UPGRADE_ICON_PATHS.magnet_charm,
+                description: "+24 pickup radius.", type: "shared", maxRank: 5, currentRank: 0, appliesTo: "all", requiredMasteryLevel: 1, slotKey: "spell_slot_5",
+                apply(p) { p.pickupRadius += 24; }
+            },
+            twin_volley_rune: {
+                id: "twin_volley_rune", name: "Twin Volley Rune", icon: UPGRADE_ICON_PATHS.twin_volley_rune,
+                description: "+1 projectile per volley.", type: "shared", maxRank: 3, currentRank: 0, appliesTo: "all", requiredMasteryLevel: 1, slotKey: "spell_slot_1",
+                apply(p) { p.projectileCount++; }
+            },
+            piercers_mark: {
+                id: "piercers_mark", name: "Piercer's Mark", icon: UPGRADE_ICON_PATHS.piercers_mark,
+                description: "Shots pass through +1 enemy.", type: "shared", maxRank: 3, currentRank: 0, appliesTo: "all", requiredMasteryLevel: 1, slotKey: "spell_slot_2",
+                apply(p) { p.pierce++; }
+            },
+            guardian_orb: {
+                id: "guardian_orb", name: "Guardian Orb", icon: UPGRADE_ICON_PATHS.guardian_orb,
+                description: "Adds a rotating defensive orb.", type: "shared", maxRank: 4, currentRank: 0, appliesTo: "all", requiredMasteryLevel: 1, slotKey: "spell_slot_3",
+                apply(p) { p.orbitBlades++; }
+            },
+            volatile_flask: {
+                id: "volatile_flask", name: "Volatile Flask", icon: UPGRADE_ICON_PATHS.volatile_flask,
+                description: "Potion attacks gain a wider splash burst.", type: "character", maxRank: 1, currentRank: 0, appliesTo: "varric_bottlehex", requiredMasteryLevel: 1, slotKey: "spell_slot_1",
+                apply(p) { p.splashRadius = Math.max(p.splashRadius || 0, 48); p.projectileRadiusBonus = Math.max(p.projectileRadiusBonus || 1, 1.35); }
+            },
+            brewmasters_belt: {
+                id: "brewmasters_belt", name: "Brewmaster's Belt", icon: UPGRADE_ICON_PATHS.brewmasters_belt,
+                description: "Healing restores 20% more.", type: "character", maxRank: 1, currentRank: 0, appliesTo: "varric_bottlehex", requiredMasteryLevel: 2, slotKey: "spell_slot_4",
+                apply(p) { p.potionHealMult = (p.potionHealMult || 1) * 1.2; }
+            },
+            lingering_vapors: {
+                id: "lingering_vapors", name: "Lingering Vapors", icon: UPGRADE_ICON_PATHS.lingering_vapors,
+                description: "Potion bursts leave a short damage cloud.", type: "character", maxRank: 1, currentRank: 0, appliesTo: "varric_bottlehex", requiredMasteryLevel: 3, slotKey: "spell_slot_5",
+                apply(p) { p.vaporClouds = true; p.splashRadius = Math.max(p.splashRadius || 0, 46); }
+            },
+            unstable_mixture: {
+                id: "unstable_mixture", name: "Unstable Mixture", icon: UPGRADE_ICON_PATHS.unstable_mixture,
+                description: "Every 6th cast is stronger.", type: "character", maxRank: 1, currentRank: 0, appliesTo: "varric_bottlehex", requiredMasteryLevel: 4, slotKey: "spell_slot_1",
+                apply(p) { p.unstableEvery = 6; }
+            },
+            living_grimoire: {
+                id: "living_grimoire", name: "Living Grimoire", icon: UPGRADE_ICON_PATHS.living_grimoire,
+                description: "Starting spell fires 15% more often.", type: "character", maxRank: 1, currentRank: 0, appliesTo: "orion_blackquill", requiredMasteryLevel: 1, slotKey: "spell_slot_3",
+                apply(p) { p.fireRate = Math.max(135, p.fireRate * 0.85); }
+            },
+            forbidden_footnotes: {
+                id: "forbidden_footnotes", name: "Forbidden Footnotes", icon: UPGRADE_ICON_PATHS.forbidden_footnotes,
+                description: "Gain 10% more XP.", type: "character", maxRank: 1, currentRank: 0, appliesTo: "orion_blackquill", requiredMasteryLevel: 2, slotKey: "spell_slot_5",
+                apply(p) { p.xpGainMult = (p.xpGainMult || 1) * 1.1; }
+            },
+            inkbound_pierce: {
+                id: "inkbound_pierce", name: "Inkbound Pierce", icon: UPGRADE_ICON_PATHS.inkbound_pierce,
+                description: "Arcane projectiles pierce one additional enemy.", type: "character", maxRank: 1, currentRank: 0, appliesTo: "orion_blackquill", requiredMasteryLevel: 3, slotKey: "spell_slot_2",
+                apply(p) { p.pierce++; }
+            },
+            moon_script_thesis: {
+                id: "moon_script_thesis", name: "Moon-Script Thesis", icon: UPGRADE_ICON_PATHS.moon_script_thesis,
+                description: "Every 5 levels grants temporary spell power.", type: "character", maxRank: 1, currentRank: 0, appliesTo: "orion_blackquill", requiredMasteryLevel: 4, slotKey: "spell_slot_1",
+                apply(p) { p.moonScriptThesis = true; }
+            },
+            cats_claw_hex: {
+                id: "cats_claw_hex", name: "Cat's Claw Hex", icon: UPGRADE_ICON_PATHS.cats_claw_hex,
+                description: "Critical hits deal 30% more damage.", type: "character", maxRank: 1, currentRank: 0, appliesTo: "mimi_nightpaw", requiredMasteryLevel: 1, slotKey: "spell_slot_1",
+                apply(p) { p.critDamageMult = (p.critDamageMult || 1.75) + 0.3; }
+            },
+            nine_lives_flicker: {
+                id: "nine_lives_flicker", name: "Nine Lives Flicker", icon: UPGRADE_ICON_PATHS.nine_lives_flicker,
+                description: "8% chance to dodge incoming damage.", type: "character", maxRank: 1, currentRank: 0, appliesTo: "mimi_nightpaw", requiredMasteryLevel: 2, slotKey: "spell_slot_4",
+                apply(p) { p.dodgeChance = (p.dodgeChance || 0) + 0.08; }
+            },
+            pounce_rhythm: {
+                id: "pounce_rhythm", name: "Pounce Rhythm", icon: UPGRADE_ICON_PATHS.pounce_rhythm,
+                description: "Attacks faster while moving.", type: "character", maxRank: 1, currentRank: 0, appliesTo: "mimi_nightpaw", requiredMasteryLevel: 3, slotKey: "spell_slot_2",
+                apply(p) { p.pounceRhythm = true; }
+            },
+            lucky_whiskers: {
+                id: "lucky_whiskers", name: "Lucky Whiskers", icon: UPGRADE_ICON_PATHS.lucky_whiskers,
+                description: "More luck and slightly better XP pickups.", type: "character", maxRank: 1, currentRank: 0, appliesTo: "mimi_nightpaw", requiredMasteryLevel: 4, slotKey: "spell_slot_5",
+                apply(p) { p.luck += 0.15; p.xpGainMult = (p.xpGainMult || 1) * 1.05; }
+            },
+            briar_snare: {
+                id: "briar_snare", name: "Briar Snare", icon: UPGRADE_ICON_PATHS.briar_snare,
+                description: "Hits slow enemies for a short time.", type: "character", maxRank: 1, currentRank: 0, appliesTo: "elowen_briarwick", requiredMasteryLevel: 1, slotKey: "spell_slot_2",
+                apply(p) { p.slowChance = Math.max(p.slowChance || 0, 0.25); p.slowMultiplier = 0.75; }
+            },
+            herbal_ward: {
+                id: "herbal_ward", name: "Herbal Ward", icon: UPGRADE_ICON_PATHS.herbal_ward,
+                description: "+1 armor.", type: "character", maxRank: 1, currentRank: 0, appliesTo: "elowen_briarwick", requiredMasteryLevel: 2, slotKey: "spell_slot_4",
+                apply(p) { p.armor += 1; }
+            },
+            wildwood_reach: {
+                id: "wildwood_reach", name: "Wildwood Reach", icon: UPGRADE_ICON_PATHS.wildwood_reach,
+                description: "Pickup radius grows by 20%.", type: "character", maxRank: 1, currentRank: 0, appliesTo: "elowen_briarwick", requiredMasteryLevel: 3, slotKey: "spell_slot_5",
+                apply(p) { p.pickupRadius *= 1.2; }
+            },
+            bloom_after_battle: {
+                id: "bloom_after_battle", name: "Bloom After Battle", icon: UPGRADE_ICON_PATHS.bloom_after_battle,
+                description: "Enemies can drop healing herbs.", type: "character", maxRank: 1, currentRank: 0, appliesTo: "elowen_briarwick", requiredMasteryLevel: 4, slotKey: "spell_slot_4",
+                apply(p) { p.healingHerbs = true; }
+            },
+            shard_focus: {
+                id: "shard_focus", name: "Shard Focus", icon: UPGRADE_ICON_PATHS.shard_focus,
+                description: "+15% spell damage.", type: "character", maxRank: 1, currentRank: 0, appliesTo: "selene_frostglass", requiredMasteryLevel: 1, slotKey: "spell_slot_1",
+                apply(p) { p.projDamage *= 1.15; }
+            },
+            fracture_burst: {
+                id: "fracture_burst", name: "Fracture Burst", icon: UPGRADE_ICON_PATHS.fracture_burst,
+                description: "Critical hits or kills create shard fragments.", type: "character", maxRank: 1, currentRank: 0, appliesTo: "selene_frostglass", requiredMasteryLevel: 2, slotKey: "spell_slot_1",
+                apply(p) { p.fractureBurst = true; p.lastFractureBurst = 0; }
+            },
+            frozen_edge: {
+                id: "frozen_edge", name: "Frozen Edge", icon: UPGRADE_ICON_PATHS.frozen_edge,
+                description: "Crystal attacks slow enemies harder.", type: "character", maxRank: 1, currentRank: 0, appliesTo: "selene_frostglass", requiredMasteryLevel: 3, slotKey: "spell_slot_2",
+                apply(p) { p.slowChance = Math.max(p.slowChance || 0, 0.35); p.slowMultiplier = 0.65; }
+            },
+            prism_volley: {
+                id: "prism_volley", name: "Prism Volley", icon: UPGRADE_ICON_PATHS.prism_volley,
+                description: "20% chance to add an extra shard shot.", type: "character", maxRank: 1, currentRank: 0, appliesTo: "selene_frostglass", requiredMasteryLevel: 4, slotKey: "spell_slot_1",
+                apply(p) { p.extraShardChance = 0.2; }
+            },
+            lantern_rot: {
+                id: "lantern_rot", name: "Lantern Rot", icon: UPGRADE_ICON_PATHS.lantern_rot,
+                description: "Nearby enemies take rot damage over time.", type: "character", maxRank: 1, currentRank: 0, appliesTo: "morna_widdershade", requiredMasteryLevel: 1, slotKey: "spell_slot_5",
+                apply(p) { p.rotAura = true; p.rotAuraRadius = 78; p.lastRotTick = 0; }
+            },
+            old_bone_charm: {
+                id: "old_bone_charm", name: "Old Bone Charm", icon: UPGRADE_ICON_PATHS.old_bone_charm,
+                description: "+25 max health and +2 armor.", type: "character", maxRank: 1, currentRank: 0, appliesTo: "morna_widdershade", requiredMasteryLevel: 2, slotKey: "spell_slot_4",
+                apply(p) { p.maxHp += 25; p.hp = Math.min(p.maxHp, p.hp + 25); p.armor += 2; }
+            },
+            swampblood_tonic: {
+                id: "swampblood_tonic", name: "Swampblood Tonic", icon: UPGRADE_ICON_PATHS.swampblood_tonic,
+                description: "Regenerate a little health over time.", type: "character", maxRank: 1, currentRank: 0, appliesTo: "morna_widdershade", requiredMasteryLevel: 3, slotKey: "spell_slot_4",
+                apply(p) { p.regenPerSecond = 0.35; }
+            },
+            curse_pulse: {
+                id: "curse_pulse", name: "Curse Pulse", icon: UPGRADE_ICON_PATHS.curse_pulse,
+                description: "Taking damage releases a curse wave.", type: "character", maxRank: 1, currentRank: 0, appliesTo: "morna_widdershade", requiredMasteryLevel: 4, slotKey: "spell_slot_5",
+                apply(p) { p.cursePulse = true; p.lastCursePulse = -99999; }
+            }
         };
+        const upgradeDefinitions = UPGRADE_REGISTRY;
 
         function initGame() {
             const character = getSelectedCharacterConfig();
@@ -974,6 +1295,7 @@
                 hp: character.maxHealth, maxHp: character.maxHealth,
                 level: 1, xp: 0, xpToNext: 10,
                 fireRate: Math.max(150, 800 * character.cooldownMult / character.fireRateMult),
+                baseFireRate: Math.max(150, 800 * character.cooldownMult / character.fireRateMult),
                 projSpeed: 10,
                 projDamage: 25 * character.damageMult,
                 pickupRadius: 58 * character.pickupRadiusMult,
@@ -984,17 +1306,23 @@
                 armor: character.armor,
                 critChance: character.critChance,
                 luck: character.luck,
+                critDamageMult: 1.75,
                 xpGainMult: character.id === "orion_blackquill" ? 1.1 : 1,
                 potionHealMult: character.id === "varric_bottlehex" ? 1.2 : 1,
                 projectileRadiusBonus: character.id === "varric_bottlehex" ? 1.2 : 1,
+                splashRadius: character.id === "varric_bottlehex" ? 32 : 0,
                 slowChance: character.id === "elowen_briarwick" ? 0.12 : 0,
+                slowMultiplier: 0.62,
                 lifesteal: character.id === "morna_widdershade" ? 0.018 : 0,
+                dodgeChance: 0,
+                castCount: 0,
+                masteryAwarded: false,
                 spriteId: selectedCharacterId,
                 characterName: character.displayName,
                 characterClass: character.className,
                 startingSpell: character.startingSpell,
                 passiveName: character.passiveName,
-                upgrades: { damage: 0, firerate: 0, speed: 0, health: 0, pickup: 0, projectile: 0, pierce: 0, orbit: 0 }
+                upgrades: {}
             };
             applyStartingSpell(player, character);
 
@@ -1002,6 +1330,7 @@
             projectiles = [];
             enemyProjectiles = [];
             gems = [];
+            hazards = [];
             particles = [];
             floatingTexts = [];
             keys = {};
@@ -1019,6 +1348,8 @@
             currentPhaseIndex = 0;
             nextBossTime = 60;
             bossSpawned = false;
+            defeatedMiniBosses = 0;
+            defeatedFinalBoss = false;
 
             isGameOver = false;
             isPaused = false;
@@ -1042,18 +1373,18 @@
                     break;
                 case "Moonlit Grimoire":
                     targetPlayer.orbitBlades = 1;
-                    targetPlayer.upgrades.orbit = 1;
+                    targetPlayer.upgrades.guardian_orb = 1;
                     break;
                 case "Familiar Hex":
                     targetPlayer.fireRate = Math.max(135, targetPlayer.fireRate * 0.92);
                     break;
                 case "Briar Crystal":
                     targetPlayer.pierce = 1;
-                    targetPlayer.upgrades.pierce = 1;
+                    targetPlayer.upgrades.piercers_mark = 1;
                     break;
                 case "Crystal Spikes":
                     targetPlayer.projectileCount = 2;
-                    targetPlayer.upgrades.projectile = 1;
+                    targetPlayer.upgrades.twin_volley_rune = 1;
                     break;
                 case "Lantern Rot":
                     targetPlayer.lifesteal = Math.max(targetPlayer.lifesteal, 0.022);
@@ -1129,6 +1460,7 @@
                 color: stats.color,
                 ranged: Boolean(stats.ranged),
                 boss: Boolean(stats.boss),
+                finalBoss: Boolean(stats.finalBoss),
                 fireRate: stats.fireRate || 0,
                 lastShot: Date.now() + Math.random() * 800,
                 lastOrbitHit: 0
@@ -1177,21 +1509,26 @@
             const angle = Math.atan2(closest.y - player.y, closest.x - player.x);
             const spread = player.projectileCount > 1 ? 0.18 : 0;
             const start = -spread * (player.projectileCount - 1) / 2;
-            for (let i = 0; i < player.projectileCount; i++) {
+            player.castCount++;
+            const unstableCast = player.unstableEvery && player.castCount % player.unstableEvery === 0;
+            const totalProjectiles = player.projectileCount + (player.extraShardChance && Math.random() < player.extraShardChance ? 1 : 0);
+            for (let i = 0; i < totalProjectiles; i++) {
                 const shotAngle = angle + start + spread * i;
                 projectiles.push({
                     x: player.x,
                     y: player.y,
                     vx: Math.cos(shotAngle) * player.projSpeed,
                     vy: Math.sin(shotAngle) * player.projSpeed,
-                    radius: 5 * (player.projectileRadiusBonus || 1),
-                    damage: player.projDamage,
+                    radius: 5 * (player.projectileRadiusBonus || 1) * (unstableCast ? 1.25 : 1),
+                    damage: player.projDamage * (unstableCast ? 1.5 : 1),
                     pierce: player.pierce,
+                    splashRadius: (player.splashRadius || 0) * (unstableCast ? 1.25 : 1),
                     hitIds: {},
-                    color: player.upgrades.firerate > 0 ? "#f97316" : "#d8b4fe",
+                    color: player.upgrades.quickcast_ember > 0 ? "#f97316" : "#d8b4fe",
                     life: 105
                 });
             }
+            if (unstableCast) addFloatingText(player.x, player.y - 42, "Unstable!", "#f6d56e");
         }
 
         function levelUp() {
@@ -1199,6 +1536,10 @@
             player.xp -= player.xpToNext;
             player.xpToNext = Math.floor(player.xpToNext * 1.45);
             player.hp = Math.min(player.maxHp, player.hp + 25);
+            if (player.moonScriptThesis && player.level % 5 === 0) {
+                player.tempDamageUntil = Date.now() + 15000;
+                addFloatingText(player.x, player.y - 52, "Moon-Script Power", "#f6d56e");
+            }
             updateHud();
             updateXpBar();
             buildUpgradeChoices();
@@ -1209,7 +1550,19 @@
 
         function buildUpgradeChoices() {
             upgradeChoices.replaceChildren();
-            const available = Object.keys(upgradeDefinitions).filter(id => player.upgrades[id] < upgradeDefinitions[id].max);
+            const available = getEligibleUpgradeIds();
+            if (available.length === 0) {
+                const button = document.createElement("button");
+                button.type = "button";
+                button.className = "btn-purple upgrade-card";
+                button.textContent = "Continue";
+                button.addEventListener("click", () => {
+                    levelUpScreen.style.display = "none";
+                    resumeFromOverlay();
+                });
+                upgradeChoices.appendChild(button);
+                return;
+            }
             shuffle(available).slice(0, 3).forEach(id => {
                 const upgrade = upgradeDefinitions[id];
                 const button = document.createElement("button");
@@ -1217,17 +1570,30 @@
                 button.className = "btn-purple upgrade-card";
                 const art = document.createElement("span");
                 art.className = "upgrade-art";
-                const iconUrl = getCroppedSpellIconDataUrl(upgrade.iconKey);
-                if (iconUrl) art.style.backgroundImage = `url("${iconUrl}")`;
+                if (getUpgradeIcon(id)) art.style.backgroundImage = `url("${upgrade.icon}")`;
                 const title = document.createElement("span");
                 title.className = "upgrade-title";
-                title.textContent = upgrade.title;
+                title.textContent = upgrade.name;
                 const desc = document.createElement("span");
                 desc.className = "upgrade-desc";
-                desc.textContent = upgrade.desc;
-                button.append(art, title, desc);
+                desc.textContent = upgrade.description;
+                const rank = document.createElement("span");
+                rank.className = "upgrade-rank";
+                rank.textContent = `Rank ${(player.upgrades[id] || 0) + 1}/${upgrade.maxRank}`;
+                button.append(art, title, desc, rank);
                 button.addEventListener("click", () => selectUpgrade(id));
                 upgradeChoices.appendChild(button);
+            });
+        }
+
+        function getEligibleUpgradeIds() {
+            const mastery = getCharacterMastery(player.spriteId);
+            return Object.keys(UPGRADE_REGISTRY).filter(id => {
+                const upgrade = UPGRADE_REGISTRY[id];
+                const rank = player.upgrades[id] || 0;
+                if (rank >= upgrade.maxRank) return false;
+                if (upgrade.appliesTo === "all") return true;
+                return upgrade.appliesTo === player.spriteId && mastery.masteryLevel >= upgrade.requiredMasteryLevel;
             });
         }
 
@@ -1243,8 +1609,9 @@
         function selectUpgrade(type) {
             const upgrade = upgradeDefinitions[type];
             if (!upgrade) return;
-            upgrade.apply();
-            addFloatingText(player.x, player.y - 36, upgrade.title, "#a855f7");
+            upgrade.apply(player, { enemies, projectiles, gems, hazards });
+            player.upgrades[type] = (player.upgrades[type] || 0) + 1;
+            addFloatingText(player.x, player.y - 36, upgrade.name, "#a855f7");
             updateHud();
             levelUpScreen.style.display = "none";
             resumeFromOverlay();
@@ -1274,13 +1641,14 @@
             if (keys.KeyS || keys.ArrowDown) dy += 1;
             if (keys.KeyA || keys.ArrowLeft) dx -= 1;
             if (keys.KeyD || keys.ArrowRight) dx += 1;
+            player.isMoving = dx !== 0 || dy !== 0;
             if (dx !== 0 || dy !== 0) {
                 const length = Math.hypot(dx, dy);
                 player.x += (dx / length) * player.speed * dt;
                 player.y += (dy / length) * player.speed * dt;
             }
 
-            if (now - lastFireTime > player.fireRate) {
+            if (now - lastFireTime > getCurrentFireRate()) {
                 fireProjectile();
                 lastFireTime = now;
             }
@@ -1298,9 +1666,17 @@
             updateEnemies(now, dt);
             updateEnemyProjectiles(dt);
             updateOrbitBlades(now, dt);
+            updateHazards(now, dt);
+            updatePassiveEffects(now, dt);
             updateGems(dt);
             updateEffects(dt);
             updateHud();
+        }
+
+        function getCurrentFireRate() {
+            let rate = player.fireRate;
+            if (player.pounceRhythm && player.isMoving) rate *= 0.85;
+            return Math.max(120, rate);
         }
 
         function updateProjectiles(dt) {
@@ -1319,6 +1695,7 @@
                     if (projectile.hitIds[enemy.id]) continue;
                     if (getDist(projectile.x, projectile.y, enemy.x, enemy.y) < projectile.radius + enemy.radius) {
                         damageEnemy(enemy, projectile.damage, projectile.color);
+                        if (projectile.splashRadius) applySplashDamage(projectile.x, projectile.y, enemy.id, projectile.damage * 0.35, projectile.splashRadius);
                         projectile.hitIds[enemy.id] = true;
                         if (enemy.hp <= 0) killEnemy(enemy, j);
                         if (projectile.pierce > 0) projectile.pierce--;
@@ -1334,7 +1711,7 @@
                 const dist = getDist(player.x, player.y, enemy.x, enemy.y);
                 const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
                 if (enemy.slowTimer > 0) enemy.slowTimer -= dt;
-                const speedMult = enemy.slowTimer > 0 ? 0.62 : 1;
+                const speedMult = enemy.slowTimer > 0 ? (enemy.slowMultiplier || 0.62) : 1;
                 if (!enemy.ranged || dist > 250) {
                     enemy.x += Math.cos(angle) * enemy.speed * speedMult * dt;
                     enemy.y += Math.sin(angle) * enemy.speed * speedMult * dt;
@@ -1389,9 +1766,15 @@
                     gem.y += Math.sin(angle) * pull * dt;
                 }
                 if (dist < player.radius + gem.radius + 8) {
-                    const xpValue = Math.max(1, Math.round(gem.value * (player.xpGainMult || 1)));
-                    player.xp += xpValue;
-                    addFloatingText(gem.x, gem.y, `+${xpValue} XP`, "#eab308");
+                    if (gem.type === "heal") {
+                        const healValue = Math.max(1, Math.round(gem.value * (player.potionHealMult || 1)));
+                        player.hp = Math.min(player.maxHp, player.hp + healValue);
+                        addFloatingText(gem.x, gem.y, `+${healValue} HP`, "#22c55e");
+                    } else {
+                        const xpValue = Math.max(1, Math.round(gem.value * (player.xpGainMult || 1)));
+                        player.xp += xpValue;
+                        addFloatingText(gem.x, gem.y, `+${xpValue} XP`, "#eab308");
+                    }
                     gems.splice(i, 1);
                     while (player.xp >= player.xpToNext) {
                         levelUp();
@@ -1419,24 +1802,125 @@
             });
         }
 
+        function applySplashDamage(x, y, sourceEnemyId, amount, radius) {
+            spawnParticles(x, y, "#a855f7", 10);
+            enemies.forEach((enemy, index) => {
+                if (enemy.id === sourceEnemyId) return;
+                if (getDist(x, y, enemy.x, enemy.y) <= radius + enemy.radius) {
+                    damageEnemy(enemy, amount, "#a855f7");
+                    if (enemy.hp <= 0) killEnemy(enemy, index);
+                }
+            });
+            if (player.vaporClouds) {
+                hazards.push({ x, y, radius: Math.max(34, radius * 0.85), damage: Math.max(2, amount * 0.08), color: "#84cc16", life: 120, tick: 0 });
+            }
+        }
+
+        function updateHazards(now, dt) {
+            for (let i = hazards.length - 1; i >= 0; i--) {
+                const hazard = hazards[i];
+                hazard.life -= dt;
+                hazard.tick -= dt;
+                if (hazard.life <= 0) {
+                    hazards.splice(i, 1);
+                    continue;
+                }
+                if (hazard.tick <= 0) {
+                    hazard.tick = 18;
+                    enemies.forEach((enemy, index) => {
+                        if (getDist(hazard.x, hazard.y, enemy.x, enemy.y) <= hazard.radius + enemy.radius) {
+                            damageEnemy(enemy, hazard.damage, hazard.color);
+                            if (enemy.hp <= 0) killEnemy(enemy, index);
+                        }
+                    });
+                }
+            }
+        }
+
+        function updatePassiveEffects(now, dt) {
+            if (player.regenPerSecond) {
+                player.hp = Math.min(player.maxHp, player.hp + player.regenPerSecond * dt / 60);
+            }
+            if (player.rotAura && now - (player.lastRotTick || 0) > 420) {
+                player.lastRotTick = now;
+                enemies.forEach((enemy, index) => {
+                    if (getDist(player.x, player.y, enemy.x, enemy.y) <= (player.rotAuraRadius || 78) + enemy.radius) {
+                        damageEnemy(enemy, Math.max(4, player.projDamage * 0.18), "#84cc16");
+                        if (enemy.hp <= 0) killEnemy(enemy, index);
+                    }
+                });
+            }
+        }
+
+        function spawnShardBurst(x, y) {
+            const now = Date.now();
+            if (!player.fractureBurst || now - (player.lastFractureBurst || 0) < 650) return;
+            player.lastFractureBurst = now;
+            for (let i = 0; i < 4; i++) {
+                const angle = Math.PI * 2 * i / 4;
+                projectiles.push({
+                    x,
+                    y,
+                    vx: Math.cos(angle) * (player.projSpeed * 0.82),
+                    vy: Math.sin(angle) * (player.projSpeed * 0.82),
+                    radius: 4,
+                    damage: Math.max(6, player.projDamage * 0.35),
+                    pierce: 0,
+                    splashRadius: 0,
+                    hitIds: {},
+                    color: "#93c5fd",
+                    life: 42
+                });
+            }
+        }
+
+        function triggerCursePulse() {
+            const now = Date.now();
+            if (!player.cursePulse || now - (player.lastCursePulse || 0) < 9000) return;
+            player.lastCursePulse = now;
+            const radius = 112;
+            spawnParticles(player.x, player.y, "#84cc16", 26);
+            addFloatingText(player.x, player.y - 46, "Curse Pulse", "#84cc16");
+            enemies.forEach((enemy, index) => {
+                if (getDist(player.x, player.y, enemy.x, enemy.y) <= radius + enemy.radius) {
+                    damageEnemy(enemy, Math.max(12, player.projDamage * 0.45), "#84cc16");
+                    enemy.slowTimer = Math.max(enemy.slowTimer || 0, 95);
+                    enemy.slowMultiplier = Math.min(enemy.slowMultiplier || 0.62, 0.55);
+                    if (enemy.hp <= 0) killEnemy(enemy, index);
+                }
+            });
+        }
+
         function damageEnemy(enemy, amount, color) {
             let finalAmount = amount;
             let text = Math.ceil(finalAmount);
             let textColor = color || "#f8fafc";
+            if (player.tempDamageUntil && Date.now() < player.tempDamageUntil) finalAmount *= 1.2;
+            let didCrit = false;
             if (Math.random() < (player.critChance || 0)) {
-                finalAmount *= 1.75;
+                didCrit = true;
+                finalAmount *= player.critDamageMult || 1.75;
                 text = `CRIT ${Math.ceil(finalAmount)}`;
                 textColor = "#f6d56e";
             }
             enemy.hp -= finalAmount;
-            if (player.slowChance && Math.random() < player.slowChance) enemy.slowTimer = Math.max(enemy.slowTimer || 0, 85);
+            if (didCrit) spawnShardBurst(enemy.x, enemy.y);
+            if (player.slowChance && Math.random() < player.slowChance) {
+                enemy.slowTimer = Math.max(enemy.slowTimer || 0, 85);
+                enemy.slowMultiplier = player.slowMultiplier || 0.62;
+            }
             if (player.lifesteal) player.hp = Math.min(player.maxHp, player.hp + finalAmount * player.lifesteal);
             addFloatingText(enemy.x, enemy.y - enemy.radius, text, textColor);
         }
 
         function damagePlayer(amount) {
+            if (player.dodgeChance && Math.random() < player.dodgeChance) {
+                addFloatingText(player.x, player.y - 38, "Dodged", "#06b6d4");
+                return;
+            }
             const mitigation = Math.max(0.7, 1 - (player.armor || 0) * 0.06);
             player.hp -= amount * mitigation;
+            triggerCursePulse();
             if (player.hp <= 0) gameOver();
         }
 
@@ -1444,12 +1928,25 @@
             if (!enemies[index] || enemies[index].id !== enemy.id) index = enemies.findIndex(item => item.id === enemy.id);
             if (index < 0) return;
             kills++;
+            if (enemy.type === "miniboss") defeatedMiniBosses++;
+            if (enemy.type === "boss" || enemy.finalBoss) defeatedFinalBoss = true;
             const points = Math.floor((enemy.score + Math.floor(gameTime / 12)) * (1 + (player.luck || 0) * 0.15));
             score += points;
             gems.push({ x: enemy.x, y: enemy.y, radius: enemy.boss ? 8 : 5, value: enemy.xp });
+            maybeDropHealingHerb(enemy);
+            spawnShardBurst(enemy.x, enemy.y);
             addFloatingText(enemy.x, enemy.y - enemy.radius - 8, `+${points}`, "#f8fafc");
             spawnParticles(enemy.x, enemy.y, enemy.color, enemy.boss ? 44 : 16);
             enemies.splice(index, 1);
+        }
+
+        function maybeDropHealingHerb(enemy) {
+            if (!player.healingHerbs) return;
+            const chances = { common: 0.01, medium: 0.03, elite: 0.08, miniboss: 0.65, boss: 1 };
+            const chance = chances[enemy.tier] || 0.02;
+            if (Math.random() <= chance) {
+                gems.push({ type: "heal", x: enemy.x + 14, y: enemy.y - 10, radius: 6, value: enemy.boss ? 36 : 18 });
+            }
         }
 
         function fireEnemyProjectile(enemy, angle) {
@@ -1505,6 +2002,7 @@
             ctx.save();
             ctx.translate(canvas.width / 2 - player.x, canvas.height / 2 - player.y);
             drawGrid();
+            drawHazards();
             drawGems();
             drawEnemies();
             drawProjectiles();
@@ -1708,7 +2206,7 @@
                 drawAsset(`spell_slot_${i + 1}`, x, y, size, size) || drawAsset("spell_slot", x, y, size, size);
                 const spell = unlocked[i];
                 if (spell) {
-                    drawCroppedSpellIcon(spell.iconKey, x + 7, y + 7, size - 14, size - 14);
+                    drawUpgradeIcon(spell.id, x + 7, y + 7, size - 14, size - 14);
                     ctx.fillStyle = "#fff7d6";
                     ctx.font = "bold 11px Segoe UI";
                     ctx.textAlign = "center";
@@ -1724,6 +2222,24 @@
                 .slice(0, 5);
         }
 
+        function drawUpgradeIcon(id, x, y, w, h) {
+            const image = getUpgradeIcon(id);
+            if (image) {
+                ctx.drawImage(image, x, y, w, h);
+                return true;
+            }
+            ctx.save();
+            ctx.fillStyle = "rgba(168, 85, 247, 0.8)";
+            ctx.beginPath();
+            ctx.arc(x + w / 2, y + h / 2, Math.min(w, h) / 2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = "#f6d56e";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.restore();
+            return false;
+        }
+
         function drawAsset(key, x, y, w, h, alpha) {
             const image = getAsset(key);
             if (!image) return false;
@@ -1734,17 +2250,32 @@
             return true;
         }
 
+        function drawHazards() {
+            hazards.forEach(hazard => {
+                ctx.save();
+                ctx.globalAlpha = Math.max(0.08, Math.min(0.32, hazard.life / 120 * 0.32));
+                ctx.shadowBlur = 18;
+                ctx.shadowColor = hazard.color;
+                ctx.fillStyle = hazard.color;
+                ctx.beginPath();
+                ctx.arc(hazard.x, hazard.y, hazard.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+        }
+
         function drawGems() {
             gems.forEach(gem => {
                 ctx.shadowBlur = 12;
-                ctx.shadowColor = "#d8b4fe";
-                if (!drawAsset("xp_star", gem.x - gem.radius - 4, gem.y - gem.radius - 4, (gem.radius + 4) * 2, (gem.radius + 4) * 2)) {
-                    ctx.fillStyle = "#d8b4fe";
+                ctx.shadowColor = gem.type === "heal" ? "#22c55e" : "#d8b4fe";
+                const iconKey = gem.type === "heal" ? "health_icon" : "xp_star";
+                if (!drawAsset(iconKey, gem.x - gem.radius - 4, gem.y - gem.radius - 4, (gem.radius + 4) * 2, (gem.radius + 4) * 2)) {
+                    ctx.fillStyle = gem.type === "heal" ? "#22c55e" : "#d8b4fe";
                     ctx.beginPath();
                     ctx.arc(gem.x, gem.y, gem.radius, 0, Math.PI * 2);
                     ctx.fill();
                 }
-                ctx.fillStyle = "rgba(234, 179, 8, 0.18)";
+                ctx.fillStyle = gem.type === "heal" ? "rgba(34, 197, 94, 0.18)" : "rgba(234, 179, 8, 0.18)";
                 ctx.beginPath();
                 ctx.arc(gem.x, gem.y, gem.radius + 7, 0, Math.PI * 2);
                 ctx.fill();
@@ -1898,8 +2429,10 @@
             clearTimeout(phaseBannerTimer);
             phaseBanner.classList.remove("visible");
             const bestTime = window.ArcadeStorage.setHighScore("survivor", gameTime);
+            const masteryXp = awardCharacterMastery("defeat");
+            const mastery = getCharacterMastery(player.spriteId);
             finalTimeDisplay.innerText = formatTime(gameTime);
-            runSummary.textContent = `Caster: ${player.characterName}\nBest Time: ${formatTime(bestTime)}\nScore: ${score}\nLevel: ${player.level}\nKills: ${kills}\nPhase Reached: ${phases[currentPhaseIndex].label}`;
+            runSummary.textContent = `Caster: ${player.characterName}\nBest Time: ${formatTime(bestTime)}\nScore: ${score}\nLevel: ${player.level}\nKills: ${kills}\nPhase Reached: ${phases[currentPhaseIndex].label}\nMastery XP: +${masteryXp} (Lv ${mastery.masteryLevel})`;
             overlayScreen.style.display = "block";
             pauseScreen.style.display = "none";
         }
@@ -1907,6 +2440,7 @@
         function resetGame() {
             if (animationId) cancelAnimationFrame(animationId);
             clearTimeout(phaseBannerTimer);
+            if (runStarted && player && !isGameOver) awardCharacterMastery("restart");
             initGame();
             gameLoop();
         }
