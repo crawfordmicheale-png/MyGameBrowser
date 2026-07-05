@@ -220,6 +220,64 @@
             pointer-events: none;
         }
 
+        #character-select-screen {
+            background-image: linear-gradient(180deg, rgba(64, 32, 18, 0.96), rgba(31, 18, 48, 0.98));
+            border: 2px solid #f6d56e;
+            box-shadow: 0 0 30px rgba(168, 85, 247, 0.45);
+            width: min(720px, 94vw);
+            max-height: min(88vh, 660px);
+            overflow-y: auto;
+        }
+
+        .character-select-copy {
+            color: #e9d5ff;
+            line-height: 1.45;
+            margin-bottom: 1rem;
+        }
+
+        .character-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .character-card {
+            min-height: 150px;
+            padding: 10px;
+            margin: 0;
+            border: 1px solid rgba(246, 213, 110, 0.5);
+            background: rgba(15, 10, 24, 0.74);
+            color: #fff7d6;
+        }
+
+        .character-card.selected {
+            border-color: #f6d56e;
+            box-shadow: 0 0 18px rgba(246, 213, 110, 0.52);
+            background: rgba(88, 28, 135, 0.72);
+        }
+
+        .character-card img {
+            width: 100%;
+            height: 104px;
+            object-fit: contain;
+            display: block;
+            margin-bottom: 6px;
+            pointer-events: none;
+        }
+
+        .character-card span {
+            display: block;
+            font-size: 0.78rem;
+            line-height: 1.2;
+        }
+
+        .selected-character-label {
+            color: #f6d56e;
+            margin-bottom: 12px;
+            font-weight: bold;
+        }
+
         @media (max-width: 900px), (pointer: coarse), (hover: none) {
             .game-page .header,
             .game-page .arcade-controls,
@@ -241,6 +299,18 @@
                 min-height: 86px;
                 padding-left: 82px;
                 background-size: 72px 72px, 100% 100%;
+            }
+
+            .character-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .character-card {
+                min-height: 136px;
+            }
+
+            .character-card img {
+                height: 88px;
             }
         }
     </style>
@@ -266,6 +336,17 @@
             <canvas id="gameCanvas" width="800" height="600"></canvas>
             <div id="phase-banner" class="phase-banner"></div>
             <div id="asset-preload-note" class="asset-preload-note">Loading spellbook...</div>
+
+            <!-- Character Select Screen -->
+            <div id="character-select-screen" class="screen-overlay">
+                <img class="survivor-banner-img" src="assets/witch_warlock/ui/panels/title_banner.png" alt="" aria-hidden="true">
+                <h2 style="color: #f6d56e; text-shadow: 0 0 10px #a855f7;">CHOOSE YOUR CASTER</h2>
+                <div class="character-select-copy">Pick a witch or warlock for this run. Gameplay stays the same; this changes your character sprite.</div>
+                <div id="character-grid" class="character-grid"></div>
+                <div id="selected-character-label" class="selected-character-label">Selected: Loading...</div>
+                <button id="start-run-button" class="btn-purple" type="button">START RUN</button>
+                <button class="lobby-btn" onclick="window.location.href='../../index.html'">BACK TO LOBBY</button>
+            </div>
 
             <!-- Pause Screen -->
             <div id="pause-screen" class="screen-overlay">
@@ -327,6 +408,20 @@
         const upgradeChoices = document.getElementById("upgrade-choices");
         const phaseBanner = document.getElementById("phase-banner");
         const assetPreloadNote = document.getElementById("asset-preload-note");
+        const characterSelectScreen = document.getElementById("character-select-screen");
+        const characterGrid = document.getElementById("character-grid");
+        const selectedCharacterLabel = document.getElementById("selected-character-label");
+        const startRunButton = document.getElementById("start-run-button");
+
+        const PLAYER_SPRITE_SIZE = 54;
+        const PLAYER_SPRITE_Y_OFFSET = -8;
+        const ENEMY_SPRITE_SIZES = {
+            common: 44,
+            medium: 58,
+            elite: 62,
+            miniboss: 96,
+            boss: 132
+        };
 
         // Witch & Warlock safe asset manifest. Dynamic values/text are always rendered by the game.
         const witchAssetManifest = {
@@ -399,6 +494,40 @@
         const spellIconDataUrls = {};
         let witchAssetsReady = false;
 
+        // Character asset manifest. Files remain in games/survivor/characters.
+        const characterAssetManifest = {
+            player_warlocks: [
+                { id: "warlock_player_1", label: "Warlock 1", path: "characters/warlock_player_1.png" },
+                { id: "warlock_player_2", label: "Warlock 2", path: "characters/warlock_player_2.png" }
+            ],
+            player_witches: [
+                { id: "witch_player_1", label: "Witch 1", path: "characters/witch_player_1.png" },
+                { id: "witch_player_2", label: "Witch 2", path: "characters/witch_player_2.png" },
+                { id: "witch_player_3", label: "Witch 3", path: "characters/witch_player_3.png" },
+                { id: "witch_player_4", label: "Witch 4", path: "characters/witch_player_4.png" }
+            ],
+            enemies_common: [
+                { id: "enemy_common_familiar", label: "Familiar", path: "characters/enemy_common_familiar.png" },
+                { id: "enemy_common_resurected", label: "Resurrected", path: "characters/enemy_common_resurected.png" }
+            ],
+            enemies_medium: [
+                { id: "enemy_medium_summoned", label: "Summoned", path: "characters/enemy_medium_summoned.png" }
+            ],
+            enemies_elite: [
+                { id: "enemy_elite_weatheredwitch", label: "Weathered Witch", path: "characters/enemy_elite_weatheredwitch.png" }
+            ],
+            enemies_miniboss: [
+                { id: "enemy_miniboss_scaredaddy", label: "Scare Daddy", path: "characters/enemy_miniboss_scaredaddy.png" }
+            ],
+            enemies_boss: [
+                { id: "enemy_boss_shroomgolem", label: "Shroom Golem", path: "characters/enemy_boss_shroomgolem.png" }
+            ]
+        };
+        const characterAssets = {};
+        const playerCharacterChoices = characterAssetManifest.player_warlocks.concat(characterAssetManifest.player_witches);
+        let selectedCharacterId = playerCharacterChoices[0].id;
+        let runStarted = false;
+
         function preloadWitchAssets() {
             const loaders = Object.entries(witchAssetDefinitions).map(([key, definition]) => new Promise(resolve => {
                 const image = new Image();
@@ -420,6 +549,40 @@
                 if (assetPreloadNote) assetPreloadNote.style.display = "none";
                 return results;
             });
+        }
+
+        function flattenCharacterManifest(manifest) {
+            return Object.values(manifest).flat();
+        }
+
+        function preloadCharacterAssets() {
+            const loaders = flattenCharacterManifest(characterAssetManifest).map(definition => new Promise(resolve => {
+                const image = new Image();
+                image.onload = () => {
+                    characterAssets[definition.id] = image;
+                    resolve({ key: definition.id, ok: true });
+                };
+                image.onerror = () => {
+                    console.warn(`[Witchlight Survivor] Missing character asset: ${definition.id} (${definition.path})`);
+                    resolve({ key: definition.id, ok: false });
+                };
+                image.src = definition.path;
+            }));
+
+            return Promise.all(loaders);
+        }
+
+        function preloadGameAssets() {
+            return Promise.all([preloadWitchAssets(), preloadCharacterAssets()]).then(results => {
+                const characterResults = results[1] || [];
+                const missingCharacters = characterResults.filter(result => !result.ok).length;
+                if (missingCharacters) console.warn(`[Witchlight Survivor] ${missingCharacters} character assets failed to load; shape fallbacks remain active.`);
+                return results;
+            });
+        }
+
+        function getCharacterAsset(id) {
+            return characterAssets[id] || null;
         }
 
         function flattenWitchAssetManifest(manifest) {
@@ -477,6 +640,62 @@
         document.addEventListener("keydown", event => keys[event.code] = true);
         document.addEventListener("keyup", event => keys[event.code] = false);
 
+        function formatCharacterLabel(id) {
+            return id
+                .replace(/^player_/, "")
+                .replace(/_/g, " ")
+                .replace(/\b\w/g, letter => letter.toUpperCase());
+        }
+
+        // Character select screen. Gameplay starts only after Start Run.
+        function buildCharacterSelect() {
+            characterGrid.replaceChildren();
+            playerCharacterChoices.forEach(choice => {
+                const button = document.createElement("button");
+                button.type = "button";
+                button.className = "character-card";
+                button.setAttribute("aria-label", `Select ${choice.label || formatCharacterLabel(choice.id)}`);
+                const image = document.createElement("img");
+                image.alt = "";
+                image.src = choice.path;
+                const label = document.createElement("span");
+                label.textContent = choice.label || formatCharacterLabel(choice.id);
+                button.append(image, label);
+                button.addEventListener("click", () => selectCharacter(choice.id));
+                characterGrid.appendChild(button);
+            });
+            startRunButton.addEventListener("click", startSelectedRun);
+            selectCharacter(selectedCharacterId);
+        }
+
+        function selectCharacter(id) {
+            selectedCharacterId = id;
+            const choice = playerCharacterChoices.find(item => item.id === id);
+            selectedCharacterLabel.textContent = `Selected: ${choice ? choice.label : formatCharacterLabel(id)}`;
+            Array.from(characterGrid.children).forEach((button, index) => {
+                button.classList.toggle("selected", playerCharacterChoices[index].id === id);
+            });
+        }
+
+        function showCharacterSelect() {
+            runStarted = false;
+            isGameOver = false;
+            isPaused = true;
+            isControlPaused = false;
+            if (animationId) cancelAnimationFrame(animationId);
+            overlayScreen.style.display = "none";
+            pauseScreen.style.display = "none";
+            levelUpScreen.style.display = "none";
+            characterSelectScreen.style.display = "block";
+            drawCharacterSelectBackdrop();
+        }
+
+        function startSelectedRun() {
+            characterSelectScreen.style.display = "none";
+            runStarted = true;
+            startSurvivor();
+        }
+
         let animationId;
         let isGameOver = false;
         let isPaused = false;
@@ -492,15 +711,17 @@
         let lastSpawnTime = 0;
         let lastFireTime = 0;
         let nextBossTime = 60;
+        let bossSpawned = false;
         let phaseBannerTimer;
         let player, enemies, projectiles, enemyProjectiles, gems, particles, floatingTexts;
 
         const enemyTypes = {
-            basic: { name: "Basic Chaser", radius: 12, hp: 28, speed: 1.75, damage: 10, xp: 5, score: 10, color: "#f43f5e" },
-            fast: { name: "Fast Enemy", radius: 9, hp: 18, speed: 2.85, damage: 8, xp: 6, score: 14, color: "#06b6d4" },
-            tank: { name: "Tank Enemy", radius: 18, hp: 88, speed: 1.05, damage: 18, xp: 14, score: 34, color: "#a855f7" },
-            ranged: { name: "Ranged Enemy", radius: 13, hp: 46, speed: 1.25, damage: 8, xp: 12, score: 28, color: "#eab308", ranged: true, fireRate: 1700 },
-            boss: { name: "Mini-Boss", radius: 34, hp: 520, speed: 0.76, damage: 26, xp: 90, score: 320, color: "#f97316", boss: true }
+            basic: { name: "Basic Chaser", tier: "common", radius: 12, hp: 28, speed: 1.75, damage: 10, xp: 5, score: 10, color: "#f43f5e" },
+            fast: { name: "Fast Enemy", tier: "common", radius: 9, hp: 18, speed: 2.85, damage: 8, xp: 6, score: 14, color: "#06b6d4" },
+            tank: { name: "Tank Enemy", tier: "medium", radius: 18, hp: 88, speed: 1.05, damage: 18, xp: 14, score: 34, color: "#a855f7" },
+            ranged: { name: "Ranged Enemy", tier: "elite", radius: 13, hp: 46, speed: 1.25, damage: 8, xp: 12, score: 28, color: "#eab308", ranged: true, fireRate: 1700 },
+            miniboss: { name: "Mini-Boss", tier: "miniboss", radius: 34, hp: 520, speed: 0.76, damage: 26, xp: 90, score: 320, color: "#f97316", boss: true },
+            boss: { name: "Shroom Golem", tier: "boss", radius: 48, hp: 1400, speed: 0.52, damage: 34, xp: 220, score: 950, color: "#84cc16", boss: true, finalBoss: true }
         };
 
         const phases = [
