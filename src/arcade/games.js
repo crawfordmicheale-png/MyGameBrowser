@@ -84,6 +84,18 @@
             thumbnail: "TG"
         },
         {
+            id: "mini-world",
+            title: "Theo & Grey: Mini World",
+            description: "Explore a cozy mini playground, collect tickets, help Biscuit, and unlock styles.",
+            genre: "Cozy / Playground",
+            route: "./games/mini-world/index.html",
+            highScoreKey: "arcade.highScore.mini-world",
+            scoreType: "score",
+            scoreLabel: "Best Tickets",
+            status: "Playable",
+            thumbnail: "MW"
+        },
+        {
             id: "breakout",
             title: "Neon Breakout",
             description: "Bounce the ball, clear bricks, and keep the system alive.",

@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Theo & Grey: Mini World</title>
+    <link rel="stylesheet" href="../../src/styles/base.css">
+    <link rel="stylesheet" href="../../src/styles/game-shell.css">
+    <link rel="stylesheet" href="../../src/styles/mobile-controls.css">
+    <style>
+        .game-page {
+            background: radial-gradient(circle at top, #4f8f68 0%, #1f4d3b 48%, #0f172a 100%);
+        }
+
+        .game-page .header,
+        .game-page .arcade-controls,
+        #world-status {
+            width: 820px;
+        }
+
+        .game-page .header {
+            font-size: 1.05rem;
+            gap: 16px;
+        }
+
+        #world-status {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 10px;
+            color: #f8fafc;
+            font-weight: bold;
+        }
+
+        .mini-stat {
+            color: #fde68a;
+            text-shadow: 0 0 10px rgba(253, 230, 138, 0.75);
+        }
+
+        .game-page canvas {
+            background: #77c970;
+            border-color: #fde68a;
+            box-shadow: 0 0 26px rgba(253, 230, 138, 0.35);
+        }
+
+        .mini-overlay {
+            width: min(470px, 90vw);
+            border: 2px solid #fde68a;
+            box-shadow: 0 0 24px rgba(253, 230, 138, 0.35);
+        }
+
+        .mini-overlay h2 {
+            color: #fde68a;
+            text-shadow: 0 0 12px rgba(253, 230, 138, 0.8);
+            font-size: 1.9rem;
+        }
+
+        .mini-copy,
+        #shop-copy {
+            color: #dbeafe;
+            line-height: 1.5;
+            margin-bottom: 1rem;
+            white-space: pre-line;
+        }
+
+        .character-buttons,
+        .shop-buttons {
+            display: grid;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .character-buttons {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        #toast-message {
+            position: absolute;
+            left: 16px;
+            top: 16px;
+            max-width: 310px;
+            padding: 8px 12px;
+            border: 1px solid rgba(253, 230, 138, 0.85);
+            border-radius: 8px;
+            background: rgba(15, 23, 42, 0.74);
+            color: #f8fafc;
+            font-weight: bold;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            pointer-events: none;
+        }
+
+        #toast-message.visible {
+            opacity: 1;
+        }
+
+        @media (max-width: 900px), (pointer: coarse), (hover: none) {
+            .game-page .header,
+            .game-page .arcade-controls,
+            #world-status {
+                width: min(96vw, 820px);
+            }
+
+            .game-page .header,
+            #world-status {
+                flex-wrap: wrap;
+                font-size: 0.88rem;
+            }
+        }
+    </style>
+</head>
+<body class="game-page">
+    <div class="header">
+        <span>THEO & GREY: MINI WORLD</span>
+        <span>BEST TICKETS: <span id="best-display" class="mini-stat">0</span></span>
+    </div>
+
+    <div id="world-status">
+        <span>PLAYER: <span id="player-display" class="mini-stat">Theo</span></span>
+        <span>TICKETS: <span id="ticket-display" class="mini-stat">0</span></span>
+        <span>QUEST: <span id="quest-display" class="mini-stat">Find Biscuit</span></span>
+        <span>STYLE: <span id="cosmetic-display" class="mini-stat">None</span></span>
+    </div>
+
+    <div id="game-container">
+        <canvas id="gameCanvas" width="820" height="540"></canvas>
+        <div id="toast-message"></div>
+
+        <div id="start-screen" class="screen-overlay mini-overlay">
+            <h2>Mini World</h2>
+            <div class="mini-copy">Choose Theo or Grey, collect shiny tickets, help Biscuit find bones, and visit the tiny shop for cozy styles.</div>
+            <div class="character-buttons">
+                <button type="button" onclick="selectCharacter('Theo')">PLAY AS THEO</button>
+                <button type="button" onclick="selectCharacter('Grey')">PLAY AS GREY</button>
+            </div>
+            <button type="button" onclick="startGame()">START PLAYING</button>
+            <button type="button" class="lobby-btn" onclick="window.location.href='../../index.html'">BACK TO LOBBY</button>
+        </div>
+
+        <div id="shop-screen" class="screen-overlay mini-overlay">
+            <h2>Tiny Shop</h2>
+            <div id="shop-copy"></div>
+            <div class="shop-buttons" id="shop-buttons"></div>
+            <button type="button" class="lobby-btn" onclick="closeShop()">KEEP PLAYING</button>
+        </div>
+    </div>
+
+    <script src="../../src/arcade/storage.js"></script>
+    <script src="../../src/arcade/controls.js"></script>
+    <script src="../../src/arcade/mobileControls.js"></script>
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const startScreen = document.getElementById("start-screen");
+        const shopScreen = document.getElementById("shop-screen");
+        const shopCopy = document.getElementById("shop-copy");
+        const shopButtons = document.getElementById("shop-buttons");
+        const toastMessage = document.getElementById("toast-message");
+        const bestDisplay = document.getElementById("best-display");
+        const playerDisplay = document.getElementById("player-display");
+        const ticketDisplay = document.getElementById("ticket-display");
+        const questDisplay = document.getElementById("quest-display");
+        const cosmeticDisplay = document.getElementById("cosmetic-display");
+
+        const progressKey = "arcade.progress.mini-world";
+        const keys = {};
+        const coins = [];
+        const bones = [];
+        const effects = [];
+        const sparkleDots = [];
+        const shopItems = [
+            { id: "redHat", label: "Red Hat", cost: 25 },
+            { id: "blueTrail", label: "Blue Trail", cost: 40 },
+            { id: "lanternGlow", label: "Lantern Glow", cost: 55 }
+        ];
+        const walls = [
+            { x: 88, y: 88, w: 98, h: 54 },
+            { x: 520, y: 110, w: 122, h: 52 },
+            { x: 190, y: 372, w: 70, h: 58 },
+            { x: 622, y: 332, w: 84, h: 58 },
+            { x: 390, y: 260, w: 38, h: 110 },
+            { x: 438, y: 318, w: 38, h: 52 }
+        ];
+        const zones = {
+            shop: { x: 626, y: 54, w: 156, h: 96 },
+            biscuit: { x: 54, y: 364, w: 128, h: 118 },
+            playground: { x: 270, y: 58, w: 186, h: 130 },
+            obby: { x: 500, y: 412, w: 220, h: 58 }
+        };
+
+        let player;
+        let progress;
+        let selectedCharacter = "Theo";
+        let selectedCosmetic = "None";
+        let isPaused = false;
+        let gameStarted = false;
+        let animationId;
+        let lastTime = 0;
+        let toastTimer = 0;
+        let questComplete = false;
+        let bonesReturned = false;
+        let wasInShopZone = false;
+
+        document.addEventListener("keydown", event => keys[event.code] = true);
+        document.addEventListener("keyup", event => keys[event.code] = false);
+
+        function defaultProgress() {
+            return {
+                totalTickets: 0,
+                bestTickets: 0,
+                selectedCharacter: "Theo",
+                selectedCosmetic: "None",
+                unlockedCosmetics: []
+            };
+        }
+
+        function readProgress() {
+            try {
+                const saved = Object.assign(defaultProgress(), JSON.parse(localStorage.getItem(progressKey)) || {});
+                if (!Array.isArray(saved.unlockedCosmetics)) saved.unlockedCosmetics = [];
+                return saved;
+            } catch (error) {
+                return defaultProgress();
+            }
+        }
+
+        function saveProgress() {
+            try {
+                localStorage.setItem(progressKey, JSON.stringify(progress));
+            } catch (error) {
+                // Progress is optional when browser storage is restricted.
+            }
+        }
+
+        function selectCharacter(name) {
+            selectedCharacter = name;
+            if (progress) {
+                progress.selectedCharacter = name;
+                saveProgress();
+            }
+            if (player) player.name = name;
+            showToast(`${name} is ready!`);
+            updateHud();
+            draw();
+        }
+
+        function startGame() {
+            if (animationId) cancelAnimationFrame(animationId);
+            progress = readProgress();
+            selectedCharacter = progress.selectedCharacter || selectedCharacter;
+            selectedCosmetic = progress.selectedCosmetic || "None";
+            setupWorld();
+            gameStarted = true;
+            isPaused = false;
+            startScreen.style.display = "none";
+            shopScreen.style.display = "none";
+            lastTime = performance.now();
+            animationId = requestAnimationFrame(gameLoop);
+        }
+
+        function setupWorld() {
+            player = {
+                name: selectedCharacter,
+                x: 104,
+                y: 252,
+                radius: 17,
+                speed: 3.9
+            };
+            coins.length = 0;
+            bones.length = 0;
+            effects.length = 0;
+            sparkleDots.length = 0;
+            questComplete = false;
+            bonesReturned = false;
+            wasInShopZone = false;
+            createCoinTrail();
+            createBones();
+            createSparkleDots();
+            updateHud();
+            showToast("Welcome to Mini World!");
+        }
+
+        function createCoinTrail() {
+            const trail = [
+                [132, 246], [184, 230], [240, 216], [300, 214], [360, 226], [426, 224],
+                [488, 212], [548, 186], [620, 176], [716, 184], [744, 244], [700, 292],
+                [628, 314], [550, 344], [500, 402], [562, 452], [636, 452], [710, 452],
+                [446, 448], [340, 430], [270, 336], [210, 300], [152, 316]
+            ];
+            trail.forEach((point, index) => {
+                coins.push({
+                    x: point[0],
+                    y: point[1],
+                    radius: index % 5 === 0 ? 12 : 9,
+                    value: index % 5 === 0 ? 5 : 2,
+                    collected: false,
+                    bob: Math.random() * Math.PI * 2
+                });
+            });
+        }
+
+        function createBones() {
+            [[312, 112], [596, 272], [256, 458]].forEach(point => {
+                bones.push({ x: point[0], y: point[1], radius: 12, collected: false, bob: Math.random() * Math.PI * 2 });
+            });
+        }
+
+        function createSparkleDots() {
+            for (let i = 0; i < 26; i++) {
+                sparkleDots.push({
+                    x: randomRange(28, canvas.width - 28),
+                    y: randomRange(28, canvas.height - 28),
+                    twinkle: Math.random() * Math.PI * 2
+                });
+            }
+        }
+
+        function gameLoop(timestamp) {
+            const dt = Math.min(2, (timestamp - lastTime) / 16.67);
+            lastTime = timestamp;
+            update(dt);
+            draw();
+            animationId = requestAnimationFrame(gameLoop);
+        }
+
+        function update(dt) {
+            if (!gameStarted || isPaused || shopScreen.style.display === "block") return;
+            movePlayer(dt);
+            collectItems();
+            updateEffects(dt);
+            updateToast(dt);
+        }
+
+        function movePlayer(dt) {
+            let dx = 0;
+            let dy = 0;
+            if (keys.ArrowLeft || keys.KeyA) dx -= 1;
+            if (keys.ArrowRight || keys.KeyD) dx += 1;
+            if (keys.ArrowUp || keys.KeyW) dy -= 1;
+            if (keys.ArrowDown || keys.KeyS) dy += 1;
+            if (dx === 0 && dy === 0) return;
+
+            const length = Math.hypot(dx, dy);
+            dx /= length;
+            dy /= length;
+
+            const nextX = clamp(player.x + dx * player.speed * dt, player.radius, canvas.width - player.radius);
+            const nextY = clamp(player.y + dy * player.speed * dt, player.radius, canvas.height - player.radius);
+
+            if (!hitsWall(nextX, player.y, player.radius)) player.x = nextX;
+            if (!hitsWall(player.x, nextY, player.radius)) player.y = nextY;
+        }
+
+        function collectItems() {
+            coins.forEach(coin => {
+                if (coin.collected || getDist(player.x, player.y, coin.x, coin.y) > player.radius + coin.radius) return;
+                coin.collected = true;
+                addTickets(coin.value);
+                addEffect(coin.x, coin.y, "#fde68a", `+${coin.value}`);
+                showToast("Shiny tickets!");
+            });
+
+            bones.forEach(bone => {
+                if (bone.collected || getDist(player.x, player.y, bone.x, bone.y) > player.radius + bone.radius + 2) return;
+                bone.collected = true;
+                addTickets(3);
+                addEffect(bone.x, bone.y, "#f8fafc", "+bone");
+                showToast("Biscuit bone found!");
+            });
+
+            if (!bonesReturned && bones.every(bone => bone.collected) && pointInRect(player.x, player.y, zones.biscuit)) {
+                bonesReturned = true;
+                questComplete = true;
+                addTickets(30);
+                addEffect(player.x, player.y - 20, "#fbbf24", "+30 quest");
+                showToast("Biscuit says thank you!");
+            }
+
+            const inShopZone = pointInRect(player.x, player.y, zones.shop);
+            if (inShopZone && !wasInShopZone) {
+                openShop();
+            }
+            wasInShopZone = inShopZone;
+        }
+
+        function addTickets(amount) {
+            progress.totalTickets += amount;
+            progress.bestTickets = Math.max(progress.bestTickets || 0, progress.totalTickets);
+            window.ArcadeStorage.setHighScore("mini-world", progress.bestTickets);
+            saveProgress();
+            updateHud();
+        }
+
+        function openShop() {
+            if (shopScreen.style.display === "block") return;
+            shopScreen.style.display = "block";
+            renderShop();
+        }
+
+        function closeShop() {
+            shopScreen.style.display = "none";
+            lastTime = performance.now();
+        }
+
+        function renderShop() {
+            const unlocked = progress.unlockedCosmetics || [];
+            shopCopy.textContent = `Tickets: ${progress.totalTickets}\nPick a cozy style to wear while you play.`;
+            shopButtons.innerHTML = "";
+            shopItems.forEach(item => {
+                const button = document.createElement("button");
+                const owned = unlocked.includes(item.id);
+                button.type = "button";
+                button.textContent = owned ? `Wear ${item.label}` : `Unlock ${item.label} - ${item.cost}`;
+                button.addEventListener("click", () => {
+                    if (!owned && progress.totalTickets < item.cost) {
+                        showToast("Need more tickets!");
+                        return;
+                    }
+                    if (!owned) {
+                        progress.totalTickets -= item.cost;
+                        progress.unlockedCosmetics.push(item.id);
+                    }
+                    progress.selectedCosmetic = item.label;
+                    selectedCosmetic = item.label;
+                    saveProgress();
+                    renderShop();
+                    updateHud();
+                    showToast(`${item.label} equipped!`);
+                });
+                shopButtons.appendChild(button);
+            });
+
+            const noneButton = document.createElement("button");
+            noneButton.type = "button";
+            noneButton.textContent = "Wear No Cosmetic";
+            noneButton.addEventListener("click", () => {
+                progress.selectedCosmetic = "None";
+                selectedCosmetic = "None";
+                saveProgress();
+                renderShop();
+                updateHud();
+            });
+            shopButtons.appendChild(noneButton);
+        }
+
+        function updateHud() {
+            if (!progress) progress = readProgress();
+            playerDisplay.innerText = selectedCharacter;
+            ticketDisplay.innerText = progress.totalTickets || 0;
+            bestDisplay.innerText = window.ArcadeStorage.getHighScore("mini-world");
+            cosmeticDisplay.innerText = selectedCosmetic || "None";
+            const found = bones.filter(bone => bone.collected).length;
+            if (bonesReturned) questDisplay.innerText = "Biscuit helped!";
+            else if (found === 3) questDisplay.innerText = "Return to Biscuit";
+            else questDisplay.innerText = `Bones ${found}/3`;
+        }
+
+        function updateEffects(dt) {
+            for (let i = effects.length - 1; i >= 0; i--) {
+                const effect = effects[i];
+                effect.life -= dt;
+                effect.y -= 0.45 * dt;
+                if (effect.life <= 0) effects.splice(i, 1);
+            }
+        }
+
+        function showToast(message) {
+            toastMessage.textContent = message;
+            toastMessage.classList.add("visible");
+            toastTimer = 120;
+        }
+
+        function updateToast(dt) {
+            if (toastTimer <= 0) return;
+            toastTimer -= dt;
+            if (toastTimer <= 0) toastMessage.classList.remove("visible");
+        }
+
+        function addEffect(x, y, color, text) {
+            effects.push({ x, y, color, text, life: 54 });
+        }
+
+        function restartGame() {
+            startGame();
+        }
+
+        function randomRange(min, max) {
+            return min + Math.random() * (max - min);
+        }
+
+        function clamp(value, min, max) {
+            return Math.max(min, Math.min(max, value));
+        }
+
+        function getDist(x1, y1, x2, y2) {
+            return Math.hypot(x2 - x1, y2 - y1);
+        }
+
+        function pointInRect(x, y, rect) {
+            return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
+        }
+
+        function hitsWall(x, y, radius) {
+            return walls.some(rect => circleRectCollide(x, y, radius, rect));
+        }
+
+        function circleRectCollide(x, y, radius, rect) {
+            const nearestX = clamp(x, rect.x, rect.x + rect.w);
+            const nearestY = clamp(y, rect.y, rect.y + rect.h);
+            return getDist(x, y, nearestX, nearestY) < radius;
+        }
+
+        function draw() {
+            drawMap();
+            drawCoins();
+            drawBones();
+            drawBiscuit();
+            drawPlayer();
+            drawEffects();
+        }
+
+        function drawMap() {
+            const grass = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            grass.addColorStop(0, "#8ee681");
+            grass.addColorStop(1, "#4fbf68");
+            ctx.fillStyle = grass;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            drawSparkles();
+            drawZone(zones.playground, "#60a5fa", "PLAYGROUND");
+            drawZone(zones.shop, "#fbbf24", "TINY SHOP");
+            drawZone(zones.biscuit, "#f97316", "BISCUIT");
+            drawObbyPath();
+            drawCoinPath();
+            drawWalls();
+            drawDecorations();
+        }
+
+        function drawZone(zone, color, label) {
+            ctx.save();
+            ctx.fillStyle = color + "33";
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 3;
+            roundedRect(zone.x, zone.y, zone.w, zone.h, 14, true, true);
+            ctx.fillStyle = "#0f172a";
+            ctx.font = "bold 13px Segoe UI";
+            ctx.textAlign = "center";
+            ctx.fillText(label, zone.x + zone.w / 2, zone.y + 22);
+            ctx.restore();
+        }
+
+        function drawObbyPath() {
+            ctx.save();
+            ctx.fillStyle = "rgba(219, 234, 254, 0.55)";
+            for (let i = 0; i < 5; i++) {
+                roundedRect(zones.obby.x + i * 42, zones.obby.y + (i % 2) * 14, 30, 22, 6, true, false);
+            }
+            ctx.restore();
+        }
+
+        function drawCoinPath() {
+            ctx.save();
+            ctx.strokeStyle = "rgba(254, 243, 199, 0.45)";
+            ctx.lineWidth = 12;
+            ctx.lineCap = "round";
+            ctx.beginPath();
+            ctx.moveTo(110, 250);
+            ctx.bezierCurveTo(270, 180, 470, 250, 642, 164);
+            ctx.bezierCurveTo(796, 160, 752, 328, 560, 350);
+            ctx.bezierCurveTo(440, 370, 540, 492, 724, 456);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function drawWalls() {
+            walls.forEach((wall, index) => {
+                if (index < 4) drawBush(wall);
+                else drawToyBlocks(wall);
+            });
+        }
+
+        function drawDecorations() {
+            drawDoghouse(86, 414);
+            drawShopStand(704, 102);
+            drawSlide(338, 120);
+            drawFlowers();
+            ctx.fillStyle = "#fef3c7";
+            ctx.font = "bold 13px Segoe UI";
+            ctx.textAlign = "center";
+            ctx.fillText("Collect tickets, find bones, and visit the shop!", canvas.width / 2, 28);
+        }
+
+        function drawSparkles() {
+            sparkleDots.forEach(dot => {
+                dot.twinkle += 0.02;
+                ctx.globalAlpha = 0.22 + Math.sin(dot.twinkle) * 0.12;
+                ctx.fillStyle = "#fef3c7";
+                ctx.beginPath();
+                ctx.arc(dot.x, dot.y, 2, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            ctx.globalAlpha = 1;
+        }
+
+        function drawCoins() {
+            coins.forEach(coin => {
+                if (coin.collected) return;
+                coin.bob += 0.04;
+                const y = coin.y + Math.sin(coin.bob) * 2;
+                ctx.save();
+                ctx.shadowBlur = 12;
+                ctx.shadowColor = "#fde68a";
+                ctx.fillStyle = "#facc15";
+                ctx.beginPath();
+                ctx.arc(coin.x, y, coin.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = "#fff7ad";
+                ctx.beginPath();
+                ctx.arc(coin.x - 3, y - 3, coin.radius * 0.28, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+        }
+
+        function drawBones() {
+            bones.forEach(bone => {
+                if (bone.collected) return;
+                bone.bob += 0.04;
+                drawBone(bone.x, bone.y + Math.sin(bone.bob) * 2);
+            });
+        }
+
+        function drawBiscuit() {
+            const x = zones.biscuit.x + 68;
+            const y = zones.biscuit.y + 52;
+            ctx.save();
+            ctx.fillStyle = bonesReturned ? "rgba(254, 243, 199, 0.32)" : "rgba(251, 191, 36, 0.16)";
+            ctx.beginPath();
+            ctx.arc(x, y, 30, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#f59e0b";
+            ctx.beginPath();
+            ctx.ellipse(x, y + 6, 21, 14, 0, 0, Math.PI * 2);
+            ctx.arc(x - 12, y - 8, 10, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#92400e";
+            ctx.beginPath();
+            ctx.ellipse(x - 20, y - 8, 5, 9, -0.45, 0, Math.PI * 2);
+            ctx.ellipse(x - 5, y - 10, 5, 9, 0.45, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = "#fbbf24";
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.arc(x + 20, y + 1, 10, -1.1, 0.8);
+            ctx.stroke();
+            ctx.fillStyle = "#0f172a";
+            ctx.beginPath();
+            ctx.arc(x - 15, y - 9, 1.8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function drawPlayer() {
+            if (!player) return;
+            const isGrey = player.name === "Grey";
+            ctx.save();
+            if (selectedCosmetic === "Blue Trail") {
+                ctx.fillStyle = "rgba(96, 165, 250, 0.32)";
+                ctx.beginPath();
+                ctx.arc(player.x - 13, player.y + 12, 13, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            if (selectedCosmetic === "Lantern Glow") {
+                ctx.fillStyle = "rgba(253, 230, 138, 0.22)";
+                ctx.beginPath();
+                ctx.arc(player.x, player.y, 34, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.shadowBlur = 12;
+            ctx.shadowColor = isGrey ? "#a78bfa" : "#38bdf8";
+            ctx.fillStyle = isGrey ? "#a78bfa" : "#38bdf8";
+            ctx.beginPath();
+            ctx.arc(player.x, player.y + 5, 16, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = isGrey ? "#ede9fe" : "#fde68a";
+            ctx.beginPath();
+            ctx.arc(player.x, player.y - 9, 13, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#0f172a";
+            ctx.beginPath();
+            ctx.arc(player.x - 4, player.y - 11, 1.7, 0, Math.PI * 2);
+            ctx.arc(player.x + 4, player.y - 11, 1.7, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = "#0f172a";
+            ctx.lineWidth = 1.8;
+            ctx.beginPath();
+            ctx.arc(player.x, player.y - 7, 4.5, 0.2, Math.PI - 0.2);
+            ctx.stroke();
+            if (selectedCosmetic === "Red Hat") {
+                ctx.fillStyle = "#ef4444";
+                roundedRect(player.x - 12, player.y - 23, 24, 8, 4, true, false);
+                ctx.fillRect(player.x + 5, player.y - 19, 14, 3);
+            }
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = "#f8fafc";
+            ctx.font = "bold 12px Segoe UI";
+            ctx.textAlign = "center";
+            ctx.fillText(player.name, player.x, player.y - 28);
+            ctx.restore();
+        }
+
+        function drawEffects() {
+            effects.forEach(effect => {
+                ctx.globalAlpha = Math.max(0, effect.life / 54);
+                ctx.fillStyle = effect.color;
+                ctx.font = "bold 16px Segoe UI";
+                ctx.textAlign = "center";
+                ctx.fillText(effect.text, effect.x, effect.y);
+            });
+            ctx.globalAlpha = 1;
+        }
+
+        function drawBush(rect) {
+            ctx.save();
+            ctx.fillStyle = "#166534";
+            ctx.shadowBlur = 6;
+            ctx.shadowColor = "rgba(22, 101, 52, 0.55)";
+            ctx.beginPath();
+            ctx.arc(rect.x + rect.w * 0.2, rect.y + rect.h * 0.6, rect.h * 0.42, 0, Math.PI * 2);
+            ctx.arc(rect.x + rect.w * 0.5, rect.y + rect.h * 0.42, rect.h * 0.52, 0, Math.PI * 2);
+            ctx.arc(rect.x + rect.w * 0.78, rect.y + rect.h * 0.62, rect.h * 0.4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#22c55e";
+            ctx.beginPath();
+            ctx.arc(rect.x + rect.w * 0.48, rect.y + rect.h * 0.36, 5, 0, Math.PI * 2);
+            ctx.arc(rect.x + rect.w * 0.68, rect.y + rect.h * 0.6, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function drawToyBlocks(rect) {
+            ctx.save();
+            const size = Math.min(38, rect.w);
+            const blocks = [
+                { x: rect.x, y: rect.y + 8, color: "#f97316", letter: "A" },
+                { x: rect.x + 34, y: rect.y, color: "#60a5fa", letter: "B" },
+                { x: rect.x + 16, y: rect.y + 38, color: "#f9a8d4", letter: "C" }
+            ];
+            blocks.forEach(block => {
+                ctx.fillStyle = block.color;
+                roundedRect(block.x, block.y, size, size, 6, true, false);
+                ctx.fillStyle = "#0f172a";
+                ctx.font = "bold 13px Segoe UI";
+                ctx.textAlign = "center";
+                ctx.fillText(block.letter, block.x + size / 2, block.y + size * 0.65);
+            });
+            ctx.restore();
+        }
+
+        function drawBone(x, y) {
+            ctx.save();
+            ctx.fillStyle = "#f8fafc";
+            ctx.strokeStyle = "#cbd5e1";
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(x - 8, y - 4, 5, 0, Math.PI * 2);
+            ctx.arc(x - 8, y + 4, 5, 0, Math.PI * 2);
+            ctx.arc(x + 8, y - 4, 5, 0, Math.PI * 2);
+            ctx.arc(x + 8, y + 4, 5, 0, Math.PI * 2);
+            ctx.fillRect(x - 9, y - 4, 18, 8);
+            ctx.fill();
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function drawDoghouse(x, y) {
+            ctx.save();
+            ctx.fillStyle = "#b45309";
+            roundedRect(x - 34, y, 68, 46, 8, true, false);
+            ctx.fillStyle = "#ef4444";
+            ctx.beginPath();
+            ctx.moveTo(x - 42, y + 6);
+            ctx.lineTo(x, y - 30);
+            ctx.lineTo(x + 42, y + 6);
+            ctx.closePath();
+            ctx.fill();
+            ctx.fillStyle = "#0f172a";
+            ctx.beginPath();
+            ctx.arc(x, y + 28, 15, Math.PI, 0);
+            ctx.lineTo(x + 15, y + 46);
+            ctx.lineTo(x - 15, y + 46);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function drawShopStand(x, y) {
+            ctx.save();
+            ctx.fillStyle = "#92400e";
+            roundedRect(x - 42, y + 10, 84, 44, 8, true, false);
+            ctx.fillStyle = "#fde68a";
+            roundedRect(x - 52, y - 12, 104, 28, 8, true, false);
+            ctx.fillStyle = "#0f172a";
+            ctx.font = "bold 13px Segoe UI";
+            ctx.textAlign = "center";
+            ctx.fillText("SHOP", x, y + 7);
+            ctx.restore();
+        }
+
+        function drawSlide(x, y) {
+            ctx.save();
+            ctx.fillStyle = "#2563eb";
+            roundedRect(x - 48, y + 24, 96, 18, 8, true, false);
+            ctx.strokeStyle = "#f97316";
+            ctx.lineWidth = 5;
+            ctx.beginPath();
+            ctx.moveTo(x - 34, y + 24);
+            ctx.lineTo(x - 8, y - 20);
+            ctx.lineTo(x + 28, y + 24);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function drawFlowers() {
+            [[52, 72], [72, 98], [770, 294], [736, 324], [92, 514], [474, 72], [456, 92]].forEach((flower, index) => {
+                ctx.save();
+                ctx.fillStyle = index % 2 ? "#f9a8d4" : "#fde047";
+                ctx.beginPath();
+                ctx.arc(flower[0], flower[1], 5, 0, Math.PI * 2);
+                ctx.arc(flower[0] + 6, flower[1], 4, 0, Math.PI * 2);
+                ctx.arc(flower[0] - 6, flower[1], 4, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+        }
+
+        function roundedRect(x, y, w, h, radius, fill, stroke) {
+            const r = Math.min(radius, w / 2, h / 2);
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y);
+            ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+            ctx.lineTo(x + r, y + h);
+            ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+            ctx.lineTo(x, y + r);
+            ctx.quadraticCurveTo(x, y, x + r, y);
+            ctx.closePath();
+            if (fill) ctx.fill();
+            if (stroke) ctx.stroke();
+        }
+
+        window.ArcadeControls.init({
+            instructions: [
+                "Choose Theo or Grey.",
+                "Move with WASD, arrow keys, or the tablet D-pad.",
+                "Collect shiny coins and tickets around the mini world.",
+                "Find 3 bones, then return to Biscuit at the doghouse.",
+                "Walk into the Tiny Shop to unlock cozy cosmetics.",
+                "There are no enemies and no losing. Just explore and play."
+            ],
+            onRestart: restartGame,
+            isPaused: () => isPaused,
+            onPauseToggle: () => {
+                if (!gameStarted || shopScreen.style.display === "block") return false;
+                isPaused = !isPaused;
+                if (!isPaused) lastTime = performance.now();
+                return isPaused;
+            }
+        });
+
+        window.ArcadeMobileControls.createDPad({
+            shouldHide: () => !gameStarted || isPaused || startScreen.style.display === "block" || shopScreen.style.display === "block"
+        });
+
+        progress = readProgress();
+        selectedCharacter = progress.selectedCharacter || "Theo";
+        selectedCosmetic = progress.selectedCosmetic || "None";
+        startScreen.style.display = "block";
+        shopScreen.style.display = "none";
+        setupWorld();
+        gameStarted = false;
+        updateHud();
+        draw();
+    </script>
+</body>
+</html>
