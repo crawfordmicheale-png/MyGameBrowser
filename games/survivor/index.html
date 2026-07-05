@@ -175,31 +175,61 @@
         .upgrade-card {
             width: 100%;
             text-align: left;
-            min-height: 96px;
-            padding-left: 96px;
-            position: relative;
+            min-height: 118px;
+            padding: 14px;
+            display: grid;
+            grid-template-columns: 72px minmax(0, 1fr);
+            gap: 12px;
+            align-items: start;
             border-color: rgba(246, 213, 110, 0.75);
+            overflow: hidden;
         }
 
         .upgrade-art {
-            position: absolute;
-            left: 12px;
-            top: 50%;
             width: 64px;
             height: 64px;
-            transform: translateY(-50%);
             border-radius: 12px;
             background: rgba(15, 10, 24, 0.72);
-            background-size: cover;
+            background-size: contain;
             background-position: center;
+            background-repeat: no-repeat;
             border: 1px solid rgba(246, 213, 110, 0.65);
             box-shadow: 0 0 12px rgba(168, 85, 247, 0.45);
+            grid-row: 1 / span 4;
+            justify-self: center;
+        }
+
+        .upgrade-content {
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
         }
 
         .upgrade-title {
             display: block;
             font-size: 1rem;
+            line-height: 1.15;
             color: #fff7d6;
+            overflow-wrap: anywhere;
+        }
+
+        .upgrade-card .upgrade-desc {
+            line-height: 1.35;
+            overflow-wrap: anywhere;
+        }
+
+        .upgrade-badge {
+            display: inline-flex;
+            width: max-content;
+            max-width: 100%;
+            border: 1px solid rgba(246, 213, 110, 0.55);
+            border-radius: 999px;
+            padding: 2px 7px;
+            color: #f6d56e;
+            background: rgba(88, 28, 135, 0.38);
+            font-size: 0.64rem;
+            line-height: 1.2;
         }
 
         .survivor-banner-img {
@@ -333,7 +363,16 @@
         }
 
         .unlock-list span {
-            display: block;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .unlock-list img {
+            width: 22px;
+            height: 22px;
+            object-fit: contain;
+            flex: 0 0 auto;
         }
 
         .upgrade-rank {
@@ -367,9 +406,25 @@
             }
 
             .upgrade-card {
-                min-height: 86px;
-                padding-left: 82px;
-                background-size: 72px 72px, 100% 100%;
+                min-height: 112px;
+                grid-template-columns: 56px minmax(0, 1fr);
+                gap: 10px;
+                padding: 12px;
+            }
+
+            .upgrade-art {
+                width: 52px;
+                height: 52px;
+            }
+
+            .upgrade-title {
+                font-size: 0.92rem;
+            }
+
+            .upgrade-card .upgrade-desc,
+            .upgrade-badge,
+            .upgrade-rank {
+                font-size: 0.72rem;
             }
 
             .character-grid {
@@ -495,6 +550,7 @@
         const PLAYER_SPRITE_SIZE = PLAYER_SPRITE_HEIGHT;
         const PLAYER_SPRITE_Y_OFFSET = -8;
         const GROUND_TEXTURE_SCALE = 0.45;
+        const DEBUG_SURVIVOR = false;
         const ENEMY_SPRITE_SIZES = {
             common: 44,
             medium: 58,
@@ -671,7 +727,7 @@
                 armor: 1,
                 critChance: 0.15,
                 luck: 0.00,
-                startingSpell: "Crystal Spikes",
+                startingSpell: "Frostglass Shards",
                 passiveName: "Shard Focus",
                 passiveDescription: "Deals high damage and has increased crit chance, but attacks slightly slower and has a smaller pickup radius."
             },
@@ -925,8 +981,35 @@
         }
 
         let keys = {};
-        document.addEventListener("keydown", event => keys[event.code] = true);
+        document.addEventListener("keydown", event => {
+            keys[event.code] = true;
+            handleDebugKeydown(event);
+        });
         document.addEventListener("keyup", event => keys[event.code] = false);
+
+        function handleDebugKeydown(event) {
+            if (!DEBUG_SURVIVOR || !player || isPaused || isGameOver) return;
+            if (event.code === "KeyL") {
+                player.xp = player.xpToNext;
+                levelUp();
+            }
+            if (event.code === "KeyM") {
+                const data = loadMasteryData();
+                const current = data[player.spriteId] || { masteryXp: 0, masteryLevel: 1 };
+                const masteryXp = (Number(current.masteryXp) || 0) + 100;
+                data[player.spriteId] = { masteryXp, masteryLevel: calculateMasteryLevel(masteryXp) };
+                saveMasteryData(data);
+                addFloatingText(player.x, player.y - 46, "+100 Mastery", "#f6d56e");
+            }
+            if (event.code === "KeyH") {
+                player.hp = player.maxHp;
+                addFloatingText(player.x, player.y - 46, "Healed", "#22c55e");
+            }
+            if (event.code === "KeyK") {
+                enemies = enemies.filter(enemy => getDist(player.x, player.y, enemy.x, enemy.y) > 220);
+                addFloatingText(player.x, player.y - 46, "Cleared", "#f8fafc");
+            }
+        }
 
         function formatCharacterLabel(id) {
             return id
@@ -942,10 +1025,26 @@
         function loadMasteryData() {
             try {
                 const parsed = JSON.parse(localStorage.getItem(MASTERY_STORAGE_KEY) || "{}");
-                return parsed && typeof parsed === "object" ? parsed : {};
+                const data = parsed && typeof parsed === "object" ? parsed : {};
+                let changed = false;
+                playerRoster.forEach(character => {
+                    const entry = data[character.id] || {};
+                    const masteryXp = Math.max(0, Number(entry.masteryXp) || 0);
+                    const masteryLevel = calculateMasteryLevel(masteryXp);
+                    if (!data[character.id] || data[character.id].masteryXp !== masteryXp || data[character.id].masteryLevel !== masteryLevel) {
+                        data[character.id] = { masteryXp, masteryLevel };
+                        changed = true;
+                    }
+                });
+                if (changed) saveMasteryData(data);
+                return data;
             } catch (error) {
                 console.warn("[Witchlight Survivor] Could not read character mastery; starting fresh.", error);
-                return {};
+                const fallback = {};
+                playerRoster.forEach(character => {
+                    fallback[character.id] = { masteryXp: 0, masteryLevel: 1 };
+                });
+                return fallback;
             }
         }
 
@@ -977,17 +1076,25 @@
         }
 
         function awardCharacterMastery(reason) {
-            if (!player || player.masteryAwarded) return 0;
-            const bonus = (defeatedMiniBosses > 0 ? 100 : 0) + (defeatedFinalBoss ? 250 : 0);
-            const earned = Math.max(1, Math.floor(gameTime * 2 + kills * 3 + player.level * 10 + bonus));
+            if (!player || player.masteryAwarded) return { earned: 0, oldLevel: 1, newLevel: 1, unlocked: [] };
+            let earned = Math.floor(gameTime * 3) + kills * 4 + player.level * 15;
+            if (gameTime >= 60) earned = Math.max(earned, 50);
+            else if (gameTime >= 30) earned = Math.max(earned, 25);
+            earned = Math.max(1, earned);
             const data = loadMasteryData();
             const current = data[player.spriteId] || { masteryXp: 0, masteryLevel: 1 };
+            const oldLevel = Math.max(1, Number(current.masteryLevel) || calculateMasteryLevel(Number(current.masteryXp) || 0));
             const masteryXp = (Number(current.masteryXp) || 0) + earned;
-            data[player.spriteId] = { masteryXp, masteryLevel: calculateMasteryLevel(masteryXp) };
+            const newLevel = calculateMasteryLevel(masteryXp);
+            const unlocked = getCharacterUpgradeIds(player.spriteId)
+                .map(id => UPGRADE_REGISTRY[id])
+                .filter(upgrade => upgrade.requiredMasteryLevel > oldLevel && upgrade.requiredMasteryLevel <= newLevel)
+                .map(upgrade => upgrade.name);
+            data[player.spriteId] = { masteryXp, masteryLevel: newLevel };
             saveMasteryData(data);
             player.masteryAwarded = true;
             console.info(`[Witchlight Survivor] ${player.characterName} earned ${earned} mastery XP (${reason}).`);
-            return earned;
+            return { earned, oldLevel, newLevel, unlocked };
         }
 
         function getCharacterUpgradeIds(characterId) {
@@ -1036,7 +1143,7 @@
                 .map(upgradeId => {
                     const upgrade = UPGRADE_REGISTRY[upgradeId];
                     const unlocked = mastery.masteryLevel >= upgrade.requiredMasteryLevel;
-                    return `<span>${unlocked ? "Unlocked" : "Locked"} Lv ${upgrade.requiredMasteryLevel}: ${upgrade.name}</span>`;
+                    return `<span><img src="${upgrade.icon}" alt="" aria-hidden="true">${unlocked ? "Unlocked" : `Locked until Mastery ${upgrade.requiredMasteryLevel}`}: ${upgrade.name}</span>`;
                 })
                 .join("");
             selectedCharacterLabel.textContent = `Selected: ${choice.displayName}`;
@@ -1046,6 +1153,7 @@
                 <p><strong>Starting Spell:</strong> ${choice.startingSpell}</p>
                 <p><strong>Passive:</strong> ${choice.passiveName} - ${choice.passiveDescription}</p>
                 <p><strong>Mastery:</strong> Level ${mastery.masteryLevel} (${progressText})</p>
+                ${mastery.masteryLevel >= 5 ? "<p><strong>Mastered</strong></p>" : ""}
                 <div class="stat-row">
                     <span class="stat-pill">HP ${choice.maxHealth}</span>
                     <span class="stat-pill">Move ${formatPercent(choice.moveSpeedMult)}</span>
@@ -1104,20 +1212,20 @@
         let player, enemies, projectiles, enemyProjectiles, gems, hazards, particles, floatingTexts;
 
         const enemyTypes = {
-            basic: { name: "Basic Chaser", tier: "common", radius: 12, hp: 28, speed: 1.75, damage: 10, xp: 5, score: 10, color: "#f43f5e" },
-            fast: { name: "Fast Enemy", tier: "common", radius: 9, hp: 18, speed: 2.85, damage: 8, xp: 6, score: 14, color: "#06b6d4" },
-            tank: { name: "Tank Enemy", tier: "medium", radius: 18, hp: 88, speed: 1.05, damage: 18, xp: 14, score: 34, color: "#a855f7" },
-            ranged: { name: "Ranged Enemy", tier: "elite", radius: 13, hp: 46, speed: 1.25, damage: 8, xp: 12, score: 28, color: "#eab308", ranged: true, fireRate: 1700 },
-            miniboss: { name: "Mini-Boss", tier: "miniboss", radius: 34, hp: 520, speed: 0.76, damage: 26, xp: 90, score: 320, color: "#f97316", boss: true },
-            boss: { name: "Shroom Golem", tier: "boss", radius: 48, hp: 1400, speed: 0.52, damage: 34, xp: 220, score: 950, color: "#84cc16", boss: true, finalBoss: true }
+            basic: { name: "Basic Chaser", tier: "common", radius: 12, hp: 24, speed: 1.45, damage: 6, xp: 7, score: 10, color: "#f43f5e" },
+            fast: { name: "Fast Enemy", tier: "common", radius: 9, hp: 16, speed: 2.35, damage: 5, xp: 8, score: 14, color: "#06b6d4" },
+            tank: { name: "Tank Enemy", tier: "medium", radius: 18, hp: 78, speed: 0.92, damage: 12, xp: 18, score: 34, color: "#a855f7" },
+            ranged: { name: "Ranged Enemy", tier: "elite", radius: 13, hp: 42, speed: 1.08, damage: 6, xp: 16, score: 28, color: "#eab308", ranged: true, fireRate: 2100 },
+            miniboss: { name: "Mini-Boss", tier: "miniboss", radius: 34, hp: 460, speed: 0.66, damage: 18, xp: 110, score: 320, color: "#f97316", boss: true },
+            boss: { name: "Shroom Golem", tier: "boss", radius: 48, hp: 1250, speed: 0.46, damage: 26, xp: 260, score: 950, color: "#84cc16", boss: true, finalBoss: true }
         };
 
         const phases = [
-            { label: "I", title: "PHASE I - FIRST SWARM", time: 0, spawnRate: 1050, group: 1, types: ["basic"] },
-            { label: "II", title: "PHASE II - RUSH", time: 30, spawnRate: 780, group: 1, types: ["basic", "basic", "fast"] },
-            { label: "III", title: "PHASE III - ARMOR", time: 60, spawnRate: 650, group: 2, types: ["basic", "fast", "tank"] },
-            { label: "IV", title: "PHASE IV - CROSSFIRE", time: 90, spawnRate: 540, group: 2, types: ["basic", "fast", "tank", "ranged"] },
-            { label: "V", title: "PHASE V - NEON STORM", time: 135, spawnRate: 440, group: 3, types: ["fast", "tank", "ranged", "basic"] }
+            { label: "I", title: "PHASE I - FIRST SWARM", time: 0, spawnRate: 1450, group: 1, types: ["basic"] },
+            { label: "II", title: "PHASE II - RUSH", time: 45, spawnRate: 1050, group: 1, types: ["basic", "basic", "fast"] },
+            { label: "III", title: "PHASE III - ARMOR", time: 90, spawnRate: 880, group: 1, types: ["basic", "fast", "tank"] },
+            { label: "IV", title: "PHASE IV - CROSSFIRE", time: 140, spawnRate: 720, group: 2, types: ["basic", "fast", "tank", "ranged"] },
+            { label: "V", title: "PHASE V - NEON STORM", time: 200, spawnRate: 620, group: 2, types: ["fast", "tank", "ranged", "basic"] }
         ];
 
         // Central upgrade registry. Level-up cards, icons, descriptions, ranks, and effects all read from here.
@@ -1293,12 +1401,12 @@
                 speed: 4 * character.moveSpeedMult,
                 color: "#06b6d4",
                 hp: character.maxHealth, maxHp: character.maxHealth,
-                level: 1, xp: 0, xpToNext: 10,
+                level: 1, xp: 0, xpToNext: 7,
                 fireRate: Math.max(150, 800 * character.cooldownMult / character.fireRateMult),
                 baseFireRate: Math.max(150, 800 * character.cooldownMult / character.fireRateMult),
                 projSpeed: 10,
                 projDamage: 25 * character.damageMult,
-                pickupRadius: 58 * character.pickupRadiusMult,
+                pickupRadius: 86 * character.pickupRadiusMult,
                 projectileCount: 1,
                 pierce: 0,
                 orbitBlades: 0,
@@ -1317,6 +1425,8 @@
                 dodgeChance: 0,
                 castCount: 0,
                 masteryAwarded: false,
+                levelUpOffersShown: 0,
+                invulnerableUntil: Date.now() + 2000,
                 spriteId: selectedCharacterId,
                 characterName: character.displayName,
                 characterClass: character.className,
@@ -1346,7 +1456,7 @@
             kills = 0;
             nextEnemyId = 1;
             currentPhaseIndex = 0;
-            nextBossTime = 60;
+            nextBossTime = 110;
             bossSpawned = false;
             defeatedMiniBosses = 0;
             defeatedFinalBoss = false;
@@ -1382,7 +1492,7 @@
                     targetPlayer.pierce = 1;
                     targetPlayer.upgrades.piercers_mark = 1;
                     break;
-                case "Crystal Spikes":
+                case "Frostglass Shards":
                     targetPlayer.projectileCount = 2;
                     targetPlayer.upgrades.twin_volley_rune = 1;
                     break;
@@ -1441,7 +1551,7 @@
             const stats = enemyTypes[chosenType];
             const angle = Math.random() * Math.PI * 2;
             const spawnRadius = stats.boss ? 700 : 620;
-            const scale = stats.boss ? 1 + Math.floor(gameTime / 60) * 0.35 : 1 + gameTime * 0.018;
+            const scale = stats.boss ? 1 + Math.floor(gameTime / 60) * 0.25 : 1 + gameTime * 0.012;
             const spriteId = chooseEnemySpriteId(stats.tier);
             enemies.push({
                 id: nextEnemyId++,
@@ -1563,7 +1673,9 @@
                 upgradeChoices.appendChild(button);
                 return;
             }
-            shuffle(available).slice(0, 3).forEach(id => {
+            const choices = buildLevelUpChoiceIds(available);
+            player.levelUpOffersShown++;
+            choices.forEach(id => {
                 const upgrade = upgradeDefinitions[id];
                 const button = document.createElement("button");
                 button.type = "button";
@@ -1571,6 +1683,14 @@
                 const art = document.createElement("span");
                 art.className = "upgrade-art";
                 if (getUpgradeIcon(id)) art.style.backgroundImage = `url("${upgrade.icon}")`;
+                const content = document.createElement("span");
+                content.className = "upgrade-content";
+                if (upgrade.type === "character") {
+                    const badge = document.createElement("span");
+                    badge.className = "upgrade-badge";
+                    badge.textContent = "Character Upgrade";
+                    content.appendChild(badge);
+                }
                 const title = document.createElement("span");
                 title.className = "upgrade-title";
                 title.textContent = upgrade.name;
@@ -1580,10 +1700,21 @@
                 const rank = document.createElement("span");
                 rank.className = "upgrade-rank";
                 rank.textContent = `Rank ${(player.upgrades[id] || 0) + 1}/${upgrade.maxRank}`;
-                button.append(art, title, desc, rank);
+                content.append(title, desc, rank);
+                button.append(art, content);
                 button.addEventListener("click", () => selectUpgrade(id));
                 upgradeChoices.appendChild(button);
             });
+        }
+
+        function buildLevelUpChoiceIds(available) {
+            const characterUpgrades = available.filter(id => UPGRADE_REGISTRY[id].type === "character");
+            const sharedUpgrades = available.filter(id => UPGRADE_REGISTRY[id].type !== "character");
+            if (player.levelUpOffersShown === 0 && characterUpgrades.length > 0) {
+                const forced = shuffle(characterUpgrades)[0];
+                return [forced, ...shuffle(sharedUpgrades.concat(characterUpgrades.filter(id => id !== forced))).slice(0, 2)];
+            }
+            return shuffle(available).slice(0, 3);
         }
 
         function getEligibleUpgradeIds() {
@@ -1654,13 +1785,13 @@
             }
 
             const phase = phases[currentPhaseIndex];
-            const spawnRate = Math.max(180, phase.spawnRate - gameTime * 3);
+            const spawnRate = Math.max(260, phase.spawnRate - gameTime * 2);
             if (now - lastSpawnTime > spawnRate) {
                 for (let i = 0; i < phase.group; i++) spawnEnemy();
                 lastSpawnTime = now;
             }
             if (gameTime >= nextBossTime && !enemies.some(enemy => enemy.boss)) spawnMiniBoss();
-            if (!bossSpawned && gameTime >= 180 && !enemies.some(enemy => enemy.boss)) spawnFinalBoss();
+            if (!bossSpawned && gameTime >= 300 && !enemies.some(enemy => enemy.boss)) spawnFinalBoss();
 
             updateProjectiles(dt);
             updateEnemies(now, dt);
@@ -1914,6 +2045,7 @@
         }
 
         function damagePlayer(amount) {
+            if (Date.now() < (player.invulnerableUntil || 0)) return;
             if (player.dodgeChance && Math.random() < player.dodgeChance) {
                 addFloatingText(player.x, player.y - 38, "Dodged", "#06b6d4");
                 return;
@@ -1941,8 +2073,9 @@
         }
 
         function maybeDropHealingHerb(enemy) {
-            if (!player.healingHerbs) return;
-            const chances = { common: 0.01, medium: 0.03, elite: 0.08, miniboss: 0.65, boss: 1 };
+            const baseChances = { common: 0.025, medium: 0.055, elite: 0.1, miniboss: 0.8, boss: 1 };
+            const bloomChances = { common: 0.045, medium: 0.09, elite: 0.16, miniboss: 1, boss: 1 };
+            const chances = player.healingHerbs ? bloomChances : baseChances;
             const chance = chances[enemy.tier] || 0.02;
             if (Math.random() <= chance) {
                 gems.push({ type: "heal", x: enemy.x + 14, y: enemy.y - 10, radius: 6, value: enemy.boss ? 36 : 18 });
@@ -2429,10 +2562,11 @@
             clearTimeout(phaseBannerTimer);
             phaseBanner.classList.remove("visible");
             const bestTime = window.ArcadeStorage.setHighScore("survivor", gameTime);
-            const masteryXp = awardCharacterMastery("defeat");
+            const masteryResult = awardCharacterMastery("defeat");
             const mastery = getCharacterMastery(player.spriteId);
             finalTimeDisplay.innerText = formatTime(gameTime);
-            runSummary.textContent = `Caster: ${player.characterName}\nBest Time: ${formatTime(bestTime)}\nScore: ${score}\nLevel: ${player.level}\nKills: ${kills}\nPhase Reached: ${phases[currentPhaseIndex].label}\nMastery XP: +${masteryXp} (Lv ${mastery.masteryLevel})`;
+            const unlockLine = masteryResult.unlocked && masteryResult.unlocked.length ? `\nUnlocked: ${masteryResult.unlocked.join(", ")}` : "";
+            runSummary.textContent = `Caster: ${player.characterName}\nTime Survived: ${formatTime(gameTime)}\nBest Time: ${formatTime(bestTime)}\nScore: ${score}\nLevel Reached: ${player.level}\nKills: ${kills}\nPhase Reached: ${phases[currentPhaseIndex].label}\nMastery XP: +${masteryResult.earned} (Lv ${mastery.masteryLevel})${unlockLine}`;
             overlayScreen.style.display = "block";
             pauseScreen.style.display = "none";
         }
