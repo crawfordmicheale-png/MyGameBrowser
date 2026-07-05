@@ -1,0 +1,1248 @@
+[
+  {
+    "path": "ui/panels/title_banner.png",
+    "source": "fantasy_witch_and_warlock_ui_kit.png",
+    "box": [
+      0,
+      0,
+      550,
+      245
+    ],
+    "size": [
+      531,
+      243
+    ]
+  },
+  {
+    "path": "ui/hud/health_mana_frame.png",
+    "source": "fantasy_witch_and_warlock_ui_kit.png",
+    "box": [
+      545,
+      0,
+      1115,
+      165
+    ],
+    "size": [
+      541,
+      165
+    ]
+  },
+  {
+    "path": "ui/hud/xp_bar_level_12.png",
+    "source": "fantasy_witch_and_warlock_ui_kit.png",
+    "box": [
+      505,
+      165,
+      1105,
+      245
+    ],
+    "size": [
+      580,
+      80
+    ]
+  },
+  {
+    "path": "ui/hud/coin_counter.png",
+    "source": "fantasy_witch_and_warlock_ui_kit.png",
+    "box": [
+      1110,
+      20,
+      1448,
+      115
+    ],
+    "size": [
+      267,
+      95
+    ]
+  },
+  {
+    "path": "ui/hud/timer_frame.png",
+    "source": "fantasy_witch_and_warlock_ui_kit.png",
+    "box": [
+      1095,
+      120,
+      1448,
+      230
+    ],
+    "size": [
+      303,
+      110
+    ]
+  },
+  {
+    "path": "ui/hud/minimap_frame.png",
+    "source": "fantasy_witch_and_warlock_ui_kit.png",
+    "box": [
+      1095,
+      220,
+      1448,
+      545
+    ],
+    "size": [
+      323,
+      325
+    ]
+  },
+  {
+    "path": "ui/panels/inventory_panel_full.png",
+    "source": "fantasy_witch_and_warlock_ui_kit.png",
+    "box": [
+      20,
+      250,
+      425,
+      805
+    ],
+    "size": [
+      405,
+      555
+    ]
+  },
+  {
+    "path": "ui/panels/character_stats_panel.png",
+    "source": "fantasy_witch_and_warlock_ui_kit.png",
+    "box": [
+      390,
+      475,
+      740,
+      810
+    ],
+    "size": [
+      350,
+      335
+    ]
+  },
+  {
+    "path": "ui/panels/level_up_panel.png",
+    "source": "fantasy_witch_and_warlock_ui_kit.png",
+    "box": [
+      750,
+      475,
+      1095,
+      815
+    ],
+    "size": [
+      339,
+      340
+    ]
+  },
+  {
+    "path": "ui/panels/pause_menu_panel.png",
+    "source": "fantasy_witch_and_warlock_ui_kit.png",
+    "box": [
+      1085,
+      495,
+      1445,
+      835
+    ],
+    "size": [
+      339,
+      340
+    ]
+  },
+  {
+    "path": "ui/panels/settings_sliders_panel.png",
+    "source": "fantasy_witch_and_warlock_ui_kit.png",
+    "box": [
+      375,
+      815,
+      755,
+      1068
+    ],
+    "size": [
+      380,
+      246
+    ]
+  },
+  {
+    "path": "ui/panels/objective_panel.png",
+    "source": "fantasy_witch_and_warlock_ui_kit.png",
+    "box": [
+      745,
+      815,
+      1065,
+      1075
+    ],
+    "size": [
+      320,
+      255
+    ]
+  },
+  {
+    "path": "ui/banners/victory_level_complete.png",
+    "source": "fantasy_witch_and_warlock_ui_kit.png",
+    "box": [
+      1060,
+      785,
+      1448,
+      925
+    ],
+    "size": [
+      388,
+      140
+    ]
+  },
+  {
+    "path": "ui/banners/defeat_banner.png",
+    "source": "fantasy_witch_and_warlock_ui_kit.png",
+    "box": [
+      1060,
+      925,
+      1448,
+      1086
+    ],
+    "size": [
+      384,
+      150
+    ]
+  },
+  {
+    "path": "ui/spell_slots/ability_slot_1.png",
+    "source": "fantasy_witch_and_warlock_ui_kit.png",
+    "box": [
+      450,
+      300,
+      570,
+      465
+    ],
+    "size": [
+      120,
+      165
+    ]
+  },
+  {
+    "path": "ui/spell_slots/ability_slot_2.png",
+    "source": "fantasy_witch_and_warlock_ui_kit.png",
+    "box": [
+      585,
+      300,
+      705,
+      465
+    ],
+    "size": [
+      120,
+      165
+    ]
+  },
+  {
+    "path": "ui/spell_slots/ability_slot_3.png",
+    "source": "fantasy_witch_and_warlock_ui_kit.png",
+    "box": [
+      720,
+      300,
+      840,
+      465
+    ],
+    "size": [
+      120,
+      157
+    ]
+  },
+  {
+    "path": "ui/spell_slots/ability_slot_4.png",
+    "source": "fantasy_witch_and_warlock_ui_kit.png",
+    "box": [
+      855,
+      300,
+      975,
+      465
+    ],
+    "size": [
+      120,
+      158
+    ]
+  },
+  {
+    "path": "ui/spell_slots/ability_slot_5.png",
+    "source": "fantasy_witch_and_warlock_ui_kit.png",
+    "box": [
+      990,
+      300,
+      1110,
+      465
+    ],
+    "size": [
+      100,
+      157
+    ]
+  },
+  {
+    "path": "ui/buttons/round_settings.png",
+    "source": "fantasy_witch_and_warlock_ui_kit.png",
+    "box": [
+      12,
+      805,
+      95,
+      900
+    ],
+    "size": [
+      83,
+      88
+    ]
+  },
+  {
+    "path": "ui/buttons/round_book.png",
+    "source": "fantasy_witch_and_warlock_ui_kit.png",
+    "box": [
+      105,
+      805,
+      188,
+      900
+    ],
+    "size": [
+      83,
+      87
+    ]
+  },
+  {
+    "path": "ui/buttons/round_save.png",
+    "source": "fantasy_witch_and_warlock_ui_kit.png",
+    "box": [
+      195,
+      805,
+      278,
+      900
+    ],
+    "size": [
+      83,
+      88
+    ]
+  },
+  {
+    "path": "ui/buttons/round_pouch.png",
+    "source": "fantasy_witch_and_warlock_ui_kit.png",
+    "box": [
+      288,
+      805,
+      375,
+      900
+    ],
+    "size": [
+      84,
+      86
+    ]
+  },
+  {
+    "path": "ui/buttons/round_star.png",
+    "source": "fantasy_witch_and_warlock_ui_kit.png",
+    "box": [
+      12,
+      910,
+      95,
+      1010
+    ],
+    "size": [
+      83,
+      94
+    ]
+  },
+  {
+    "path": "ui/buttons/round_trophy.png",
+    "source": "fantasy_witch_and_warlock_ui_kit.png",
+    "box": [
+      105,
+      910,
+      188,
+      1010
+    ],
+    "size": [
+      83,
+      94
+    ]
+  },
+  {
+    "path": "ui/buttons/round_stats.png",
+    "source": "fantasy_witch_and_warlock_ui_kit.png",
+    "box": [
+      195,
+      910,
+      278,
+      1010
+    ],
+    "size": [
+      83,
+      94
+    ]
+  },
+  {
+    "path": "ui/buttons/round_close.png",
+    "source": "fantasy_witch_and_warlock_ui_kit.png",
+    "box": [
+      288,
+      910,
+      375,
+      1010
+    ],
+    "size": [
+      84,
+      94
+    ]
+  },
+  {
+    "path": "icons/items/heart_gem.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      10,
+      10,
+      120,
+      125
+    ],
+    "size": [
+      103,
+      100
+    ]
+  },
+  {
+    "path": "icons/items/mana_drop.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      120,
+      10,
+      220,
+      130
+    ],
+    "size": [
+      83,
+      116
+    ]
+  },
+  {
+    "path": "icons/items/gold_coin_pentacle.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      220,
+      5,
+      330,
+      130
+    ],
+    "size": [
+      101,
+      116
+    ]
+  },
+  {
+    "path": "icons/items/xp_star.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      328,
+      0,
+      438,
+      135
+    ],
+    "size": [
+      104,
+      116
+    ]
+  },
+  {
+    "path": "icons/items/purple_crystal.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      445,
+      5,
+      540,
+      135
+    ],
+    "size": [
+      66,
+      117
+    ]
+  },
+  {
+    "path": "icons/items/moon_shard.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      550,
+      10,
+      650,
+      135
+    ],
+    "size": [
+      88,
+      103
+    ]
+  },
+  {
+    "path": "icons/items/red_mushroom.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      650,
+      10,
+      755,
+      135
+    ],
+    "size": [
+      101,
+      110
+    ]
+  },
+  {
+    "path": "icons/items/lavender_herb.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      750,
+      5,
+      855,
+      135
+    ],
+    "size": [
+      87,
+      121
+    ]
+  },
+  {
+    "path": "icons/items/scroll.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      850,
+      5,
+      980,
+      135
+    ],
+    "size": [
+      113,
+      115
+    ]
+  },
+  {
+    "path": "icons/items/spellbook.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      975,
+      5,
+      1100,
+      135
+    ],
+    "size": [
+      124,
+      121
+    ]
+  },
+  {
+    "path": "icons/items/bomb.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      1095,
+      0,
+      1215,
+      140
+    ],
+    "size": [
+      98,
+      124
+    ]
+  },
+  {
+    "path": "icons/items/purple_potion.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      1205,
+      0,
+      1330,
+      140
+    ],
+    "size": [
+      92,
+      121
+    ]
+  },
+  {
+    "path": "icons/items/treasure_pouch.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      1320,
+      0,
+      1445,
+      140
+    ],
+    "size": [
+      100,
+      117
+    ]
+  },
+  {
+    "path": "icons/badges/skull_warning.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      5,
+      120,
+      130,
+      270
+    ],
+    "size": [
+      120,
+      132
+    ]
+  },
+  {
+    "path": "icons/badges/boss.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      125,
+      110,
+      335,
+      280
+    ],
+    "size": [
+      184,
+      170
+    ]
+  },
+  {
+    "path": "icons/badges/wave_12.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      330,
+      110,
+      470,
+      280
+    ],
+    "size": [
+      129,
+      170
+    ]
+  },
+  {
+    "path": "icons/badges/elite.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      470,
+      110,
+      625,
+      280
+    ],
+    "size": [
+      154,
+      170
+    ]
+  },
+  {
+    "path": "icons/badges/check.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      625,
+      130,
+      720,
+      245
+    ],
+    "size": [
+      90,
+      96
+    ]
+  },
+  {
+    "path": "icons/badges/exclamation.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      720,
+      130,
+      815,
+      245
+    ],
+    "size": [
+      95,
+      97
+    ]
+  },
+  {
+    "path": "icons/badges/info.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      815,
+      130,
+      910,
+      245
+    ],
+    "size": [
+      95,
+      98
+    ]
+  },
+  {
+    "path": "icons/badges/locked.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      915,
+      130,
+      1010,
+      245
+    ],
+    "size": [
+      95,
+      98
+    ]
+  },
+  {
+    "path": "icons/badges/unlocked.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      1015,
+      130,
+      1110,
+      245
+    ],
+    "size": [
+      95,
+      98
+    ]
+  },
+  {
+    "path": "icons/badges/plus.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      1110,
+      130,
+      1205,
+      245
+    ],
+    "size": [
+      95,
+      99
+    ]
+  },
+  {
+    "path": "icons/badges/heart_plus.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      1205,
+      130,
+      1310,
+      245
+    ],
+    "size": [
+      93,
+      101
+    ]
+  },
+  {
+    "path": "icons/badges/treasure_chest.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      1305,
+      120,
+      1445,
+      275
+    ],
+    "size": [
+      125,
+      149
+    ]
+  },
+  {
+    "path": "ui/buttons/key.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      25,
+      270,
+      112,
+      375
+    ],
+    "size": [
+      87,
+      105
+    ]
+  },
+  {
+    "path": "ui/buttons/gear.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      132,
+      268,
+      232,
+      375
+    ],
+    "size": [
+      100,
+      107
+    ]
+  },
+  {
+    "path": "ui/buttons/trophy.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      240,
+      270,
+      345,
+      375
+    ],
+    "size": [
+      105,
+      105
+    ]
+  },
+  {
+    "path": "ui/buttons/pause.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      352,
+      268,
+      455,
+      375
+    ],
+    "size": [
+      103,
+      107
+    ]
+  },
+  {
+    "path": "ui/buttons/play.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      460,
+      268,
+      560,
+      375
+    ],
+    "size": [
+      100,
+      107
+    ]
+  },
+  {
+    "path": "ui/buttons/close_x.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      565,
+      268,
+      665,
+      375
+    ],
+    "size": [
+      100,
+      107
+    ]
+  },
+  {
+    "path": "ui/buttons/arrow_left.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      672,
+      265,
+      772,
+      375
+    ],
+    "size": [
+      100,
+      110
+    ]
+  },
+  {
+    "path": "ui/buttons/arrow_right.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      777,
+      268,
+      878,
+      375
+    ],
+    "size": [
+      101,
+      107
+    ]
+  },
+  {
+    "path": "ui/buttons/plus.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      882,
+      268,
+      978,
+      375
+    ],
+    "size": [
+      96,
+      107
+    ]
+  },
+  {
+    "path": "ui/buttons/minus.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      982,
+      268,
+      1084,
+      375
+    ],
+    "size": [
+      102,
+      107
+    ]
+  },
+  {
+    "path": "ui/frames/ability_round_empty.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      10,
+      365,
+      190,
+      545
+    ],
+    "size": [
+      180,
+      180
+    ]
+  },
+  {
+    "path": "ui/frames/inventory_square_empty.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      190,
+      380,
+      350,
+      545
+    ],
+    "size": [
+      160,
+      164
+    ]
+  },
+  {
+    "path": "ui/frames/inventory_square_highlighted.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      355,
+      375,
+      510,
+      545
+    ],
+    "size": [
+      155,
+      169
+    ]
+  },
+  {
+    "path": "ui/frames/common.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      520,
+      375,
+      660,
+      545
+    ],
+    "size": [
+      138,
+      168
+    ]
+  },
+  {
+    "path": "ui/frames/rare.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      660,
+      375,
+      800,
+      545
+    ],
+    "size": [
+      136,
+      170
+    ]
+  },
+  {
+    "path": "ui/frames/epic.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      805,
+      375,
+      945,
+      545
+    ],
+    "size": [
+      130,
+      166
+    ]
+  },
+  {
+    "path": "ui/frames/legendary.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      945,
+      375,
+      1085,
+      545
+    ],
+    "size": [
+      140,
+      170
+    ]
+  },
+  {
+    "path": "ui/frames/arcane_amulet_tooltip.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      1035,
+      270,
+      1448,
+      525
+    ],
+    "size": [
+      404,
+      255
+    ]
+  },
+  {
+    "path": "icons/potions/health_red.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      20,
+      560,
+      115,
+      700
+    ],
+    "size": [
+      95,
+      137
+    ]
+  },
+  {
+    "path": "icons/potions/mana_blue.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      123,
+      560,
+      220,
+      700
+    ],
+    "size": [
+      97,
+      137
+    ]
+  },
+  {
+    "path": "icons/potions/poison_green.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      222,
+      560,
+      322,
+      700
+    ],
+    "size": [
+      99,
+      137
+    ]
+  },
+  {
+    "path": "icons/potions/arcane_purple.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      322,
+      560,
+      422,
+      700
+    ],
+    "size": [
+      98,
+      136
+    ]
+  },
+  {
+    "path": "icons/potions/gold.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      425,
+      560,
+      520,
+      700
+    ],
+    "size": [
+      90,
+      130
+    ]
+  },
+  {
+    "path": "icons/potions/skull_bomb.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      520,
+      545,
+      625,
+      700
+    ],
+    "size": [
+      94,
+      132
+    ]
+  },
+  {
+    "path": "ui/hud/damage_number_critical.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      620,
+      545,
+      990,
+      700
+    ],
+    "size": [
+      354,
+      155
+    ]
+  },
+  {
+    "path": "ui/panels/quests_panel.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      1055,
+      520,
+      1448,
+      780
+    ],
+    "size": [
+      388,
+      260
+    ]
+  },
+  {
+    "path": "ui/cards/arcane_blast.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      20,
+      710,
+      205,
+      1065
+    ],
+    "size": [
+      185,
+      353
+    ]
+  },
+  {
+    "path": "ui/cards/moonlight_orb.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      210,
+      710,
+      395,
+      1065
+    ],
+    "size": [
+      185,
+      352
+    ]
+  },
+  {
+    "path": "ui/cards/soul_drain.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      400,
+      710,
+      580,
+      1065
+    ],
+    "size": [
+      180,
+      349
+    ]
+  },
+  {
+    "path": "ui/cards/crystal_spikes.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      585,
+      710,
+      760,
+      1065
+    ],
+    "size": [
+      175,
+      351
+    ]
+  },
+  {
+    "path": "ui/cards/cursed_fire.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      760,
+      710,
+      925,
+      1065
+    ],
+    "size": [
+      165,
+      350
+    ]
+  },
+  {
+    "path": "ui/cards/potion_mastery.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      920,
+      710,
+      1080,
+      1065
+    ],
+    "size": [
+      159,
+      346
+    ]
+  },
+  {
+    "path": "ui/counters/health_bar.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      1115,
+      780,
+      1430,
+      850
+    ],
+    "size": [
+      315,
+      70
+    ]
+  },
+  {
+    "path": "ui/counters/mana_bar.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      1115,
+      840,
+      1430,
+      905
+    ],
+    "size": [
+      306,
+      65
+    ]
+  },
+  {
+    "path": "ui/counters/gold.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      1115,
+      900,
+      1430,
+      960
+    ],
+    "size": [
+      302,
+      60
+    ]
+  },
+  {
+    "path": "ui/counters/crystals.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      1115,
+      955,
+      1430,
+      1015
+    ],
+    "size": [
+      301,
+      60
+    ]
+  },
+  {
+    "path": "ui/counters/kills_skull.png",
+    "source": "fantasy_arcane_game_ui_asset_sheet.png",
+    "box": [
+      1115,
+      1010,
+      1430,
+      1075
+    ],
+    "size": [
+      302,
+      60
+    ]
+  }
+]

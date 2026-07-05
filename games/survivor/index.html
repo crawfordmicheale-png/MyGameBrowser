@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Neon Survivor</title>
+    <title>Witchlight Survivor</title>
     <link rel="stylesheet" href="../../src/styles/base.css">
     <link rel="stylesheet" href="../../src/styles/game-shell.css">
     <link rel="stylesheet" href="../../src/styles/mobile-controls.css">
@@ -11,62 +11,82 @@
         .game-page .header {
             font-size: 1.2rem;
             align-items: center;
+            color: #f7e8c6;
+            text-shadow: 0 0 12px rgba(168, 85, 247, 0.8);
         }
 
         .stats {
             display: flex;
             gap: 20px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
         }
 
         .stat-highlight {
-            color: #06b6d4;
-            text-shadow: 0 0 10px rgba(6, 182, 212, 0.8);
+            color: #f6d56e;
+            text-shadow: 0 0 10px rgba(168, 85, 247, 0.85);
         }
 
         #xp-bar-container {
             width: 800px;
-            height: 10px;
-            background-color: #1e293b;
-            border-radius: 5px;
+            height: 24px;
+            background-color: #1e1430;
+            border-radius: 8px;
             margin-bottom: 10px;
             overflow: hidden;
-            border: 1px solid #334155;
+            border: 1px solid rgba(246, 213, 110, 0.7);
+            padding: 7px 14px;
+            box-shadow: 0 0 18px rgba(88, 28, 135, 0.45);
         }
 
         #xp-bar {
             height: 100%;
             width: 0%;
-            background-color: #eab308;
-            box-shadow: 0 0 10px #eab308;
+            background: linear-gradient(90deg, #6d28d9, #d8b4fe, #f6d56e);
+            border-radius: 999px;
+            box-shadow: 0 0 10px #d8b4fe;
             transition: width 0.2s;
         }
 
         .game-page canvas {
-            background-color: #0f172a; 
+            background-color: #120d1d;
+            image-rendering: auto;
         }
 
-        /* Shared Screen Overlay Styles */
+        /* Witch & Warlock UI skin. PNGs are optional; base colors remain as fallback. */
         .game-page .screen-overlay {
-            background: rgba(15, 23, 42, 0.95);
+            background-color: rgba(18, 13, 29, 0.96);
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: 100% 100%;
             padding: 2rem 4rem;
             z-index: 10;
+            color: #f7e8c6;
         }
 
-        .game-page #overlay-screen,
-        .game-page #level-up-screen {
-            background: rgba(15, 23, 42, 0.95);
-            padding: 2rem 4rem;
+        .game-page #overlay-screen {
+            background-image: linear-gradient(180deg, rgba(64, 32, 18, 0.95), rgba(31, 18, 48, 0.96));
+            border: 2px solid #f43f5e;
+            box-shadow: 0 0 28px rgba(244, 63, 94, 0.42);
+            min-width: min(430px, 90vw);
         }
 
-        /* Level Up Screen */
+        .game-page #pause-screen {
+            background-image: linear-gradient(180deg, rgba(64, 32, 18, 0.95), rgba(31, 18, 48, 0.96));
+            border: 2px solid #f6d56e;
+            box-shadow: 0 0 28px rgba(246, 213, 110, 0.34);
+            width: min(360px, 90vw);
+        }
+
         #level-up-screen {
+            background-image: linear-gradient(180deg, rgba(64, 32, 18, 0.96), rgba(31, 18, 48, 0.98));
             border: 2px solid #a855f7;
-            box-shadow: 0 0 20px rgba(168, 85, 247, 0.4);
-            width: 400px;
+            box-shadow: 0 0 28px rgba(168, 85, 247, 0.45);
+            width: min(470px, 92vw);
         }
 
         h2 { margin: 0 0 1rem 0; font-size: 2.5rem; }
-        .survived-time { font-size: 1.2rem; color: #94a3b8; margin-bottom: 1.5rem; }
+        .survived-time { font-size: 1.2rem; color: #e9d5ff; margin-bottom: 1.5rem; }
 
         .game-page button {
             padding: 12px 24px;
@@ -74,12 +94,42 @@
             text-transform: uppercase;
         }
 
-        /* Button Variations */
-        .btn-cyan { background-color: #06b6d4; }
-        .btn-cyan:hover { background-color: #f8fafc; box-shadow: 0 0 15px #06b6d4; }
+        .game-page .arcade-control-btn,
+        .btn-cyan,
+        .game-page .btn-purple {
+            background-color: #5b2a86;
+            background-image: linear-gradient(180deg, rgba(246, 213, 110, 0.22), rgba(88, 28, 135, 0.66));
+            border: 1px solid rgba(246, 213, 110, 0.7);
+            color: #fff7d6;
+        }
+
+        .game-page .arcade-pause-btn {
+            background-image: url("assets/witch_warlock/ui/buttons/pause.png"), linear-gradient(180deg, rgba(246, 213, 110, 0.22), rgba(88, 28, 135, 0.66));
+            background-size: 22px 22px, 100% 100%;
+            background-position: 10px center, center;
+            background-repeat: no-repeat;
+            padding-left: 38px;
+        }
+
+        .game-page .arcade-help-btn {
+            background-image: url("assets/witch_warlock/ui/buttons/round_book.png"), linear-gradient(180deg, rgba(246, 213, 110, 0.22), rgba(88, 28, 135, 0.66));
+            background-size: 22px 22px, 100% 100%;
+            background-position: 10px center, center;
+            background-repeat: no-repeat;
+            padding-left: 38px;
+        }
+
+        .game-page .arcade-restart-btn {
+            background-image: url("assets/witch_warlock/ui/buttons/round_star.png"), linear-gradient(180deg, rgba(246, 213, 110, 0.22), rgba(88, 28, 135, 0.66));
+            background-size: 22px 22px, 100% 100%;
+            background-position: 10px center, center;
+            background-repeat: no-repeat;
+            padding-left: 38px;
+        }
+
+        .btn-cyan:hover { background-color: #f7e8c6; color: #1f1230; box-shadow: 0 0 15px #a855f7; }
         
-        .game-page .btn-purple { background-color: #a855f7; color: #f8fafc; }
-        .game-page .btn-purple:hover { background-color: #d8b4fe; color: #0f172a; box-shadow: 0 0 15px #a855f7; }
+        .game-page .btn-purple:hover { background-color: #d8b4fe; color: #1f1230; box-shadow: 0 0 15px #a855f7; }
 
         /* Upgrade Subtitles */
         .upgrade-desc {
@@ -95,11 +145,11 @@
             top: 18px;
             left: 50%;
             transform: translateX(-50%);
-            color: #f8fafc;
+            color: #f7e8c6;
             font-size: 1.4rem;
             font-weight: bold;
             text-align: center;
-            text-shadow: 0 0 18px #06b6d4;
+            text-shadow: 0 0 18px #a855f7;
             pointer-events: none;
             opacity: 0;
             transition: opacity 0.25s ease;
@@ -111,7 +161,7 @@
         }
 
         .summary-lines {
-            color: #cbd5e1;
+            color: #e9d5ff;
             line-height: 1.6;
             margin-bottom: 1rem;
             white-space: pre-line;
@@ -125,13 +175,80 @@
         .upgrade-card {
             width: 100%;
             text-align: left;
+            min-height: 96px;
+            padding-left: 96px;
+            position: relative;
+            border-color: rgba(246, 213, 110, 0.75);
+        }
+
+        .upgrade-art {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            width: 64px;
+            height: 64px;
+            transform: translateY(-50%);
+            border-radius: 12px;
+            background: rgba(15, 10, 24, 0.72);
+            background-size: cover;
+            background-position: center;
+            border: 1px solid rgba(246, 213, 110, 0.65);
+            box-shadow: 0 0 12px rgba(168, 85, 247, 0.45);
+        }
+
+        .upgrade-title {
+            display: block;
+            font-size: 1rem;
+            color: #fff7d6;
+        }
+
+        .survivor-banner-img {
+            display: block;
+            width: min(280px, 82%);
+            height: auto;
+            margin: 0 auto 0.6rem;
+            object-fit: contain;
+            pointer-events: none;
+        }
+
+        .asset-preload-note {
+            position: absolute;
+            left: 12px;
+            bottom: 12px;
+            color: rgba(247, 232, 198, 0.7);
+            font-size: 0.75rem;
+            pointer-events: none;
+        }
+
+        @media (max-width: 900px), (pointer: coarse), (hover: none) {
+            .game-page .header,
+            .game-page .arcade-controls,
+            #xp-bar-container {
+                width: min(96vw, 800px);
+            }
+
+            .game-page .header {
+                font-size: 0.92rem;
+                flex-wrap: wrap;
+            }
+
+            .stats {
+                gap: 10px;
+                justify-content: center;
+            }
+
+            .upgrade-card {
+                min-height: 86px;
+                padding-left: 82px;
+                background-size: 72px 72px, 100% 100%;
+            }
         }
     </style>
 </head>
 <body class="game-page">
 
     <div class="header">
-        <span>NEON SURVIVOR</span>
+        <span>WITCHLIGHT SURVIVOR</span>
         <div class="stats">
             <span>LVL: <span id="level-display" class="stat-highlight">1</span></span>
             <span>TIME: <span id="time-display" class="stat-highlight">0:00</span></span>
@@ -145,13 +262,23 @@
         <div id="xp-bar"></div>
     </div>
 
-    <div id="game-container">
-        <canvas id="gameCanvas" width="800" height="600"></canvas>
-        <div id="phase-banner" class="phase-banner"></div>
+        <div id="game-container">
+            <canvas id="gameCanvas" width="800" height="600"></canvas>
+            <div id="phase-banner" class="phase-banner"></div>
+            <div id="asset-preload-note" class="asset-preload-note">Loading spellbook...</div>
+
+            <!-- Pause Screen -->
+            <div id="pause-screen" class="screen-overlay">
+                <img class="survivor-banner-img" src="assets/witch_warlock/ui/panels/title_banner.png" alt="" aria-hidden="true">
+                <h2 style="color: #f6d56e; text-shadow: 0 0 10px #a855f7;">PAUSED</h2>
+                <button class="btn-purple" onclick="resumeFromPauseMenu()">RESUME</button>
+                <button class="lobby-btn" onclick="window.location.href='../../index.html'">BACK TO LOBBY</button>
+            </div>
         
-        <!-- Game Over Screen -->
-        <div id="overlay-screen" class="screen-overlay">
-            <h2 id="end-title" style="color: #f43f5e; text-shadow: 0 0 10px #f43f5e;">SWARMED</h2>
+            <!-- Game Over Screen -->
+            <div id="overlay-screen" class="screen-overlay">
+            <img class="survivor-banner-img" src="assets/witch_warlock/ui/banners/defeat_banner.png" alt="" aria-hidden="true">
+            <h2 id="end-title" style="color: #f43f5e; text-shadow: 0 0 10px #f43f5e;">CURSE CLAIMED</h2>
             <div class="survived-time">Survived: <span id="final-time">0:00</span></div>
             <div id="run-summary" class="summary-lines"></div>
             <button class="btn-cyan" onclick="resetGame()">RETRY</button>
@@ -160,7 +287,7 @@
 
         <!-- Level Up Screen -->
         <div id="level-up-screen" class="screen-overlay">
-            <h2 style="color: #a855f7; text-shadow: 0 0 10px #a855f7;">LEVEL UP!</h2>
+            <h2 style="color: #f6d56e; text-shadow: 0 0 10px #a855f7;">SPELLBOOK OPENS!</h2>
             <div id="upgrade-choices" class="upgrade-grid">
                 <button class="btn-purple upgrade-card" onclick="selectUpgrade('damage')">
                     Increase Damage
@@ -193,11 +320,158 @@
         const phaseDisplay = document.getElementById("phase-display");
         const xpBar = document.getElementById("xp-bar");
         const overlayScreen = document.getElementById("overlay-screen");
+        const pauseScreen = document.getElementById("pause-screen");
         const levelUpScreen = document.getElementById("level-up-screen");
         const finalTimeDisplay = document.getElementById("final-time");
         const runSummary = document.getElementById("run-summary");
         const upgradeChoices = document.getElementById("upgrade-choices");
         const phaseBanner = document.getElementById("phase-banner");
+        const assetPreloadNote = document.getElementById("asset-preload-note");
+
+        // Witch & Warlock safe asset manifest. Dynamic values/text are always rendered by the game.
+        const witchAssetManifest = {
+            icons: {
+                health_icon: "assets/witch_warlock/icons/items/heart_gem.png",
+                mana_icon: "assets/witch_warlock/icons/items/mana_drop.png",
+                boss_badge: "assets/witch_warlock/icons/badges/boss.png"
+            },
+            spell_icons: {
+                arcane_blast: { path: "assets/witch_warlock/ui/cards/arcane_blast.png", crop: [30, 64, 124, 122] },
+                moonlight_orb: { path: "assets/witch_warlock/ui/cards/moonlight_orb.png", crop: [30, 64, 124, 122] },
+                soul_drain: { path: "assets/witch_warlock/ui/cards/soul_drain.png", crop: [30, 64, 124, 122] },
+                crystal_spikes: { path: "assets/witch_warlock/ui/cards/crystal_spikes.png", crop: [30, 64, 124, 122] },
+                cursed_fire: { path: "assets/witch_warlock/ui/cards/cursed_fire.png", crop: [30, 64, 124, 122] },
+                potion_mastery: { path: "assets/witch_warlock/ui/cards/potion_mastery.png", crop: [30, 64, 124, 122] }
+            },
+            item_icons: {
+                xp_star: "assets/witch_warlock/icons/items/xp_star.png",
+                purple_crystal: "assets/witch_warlock/icons/items/purple_crystal.png",
+                potion_mastery_icon: "assets/witch_warlock/icons/potions/health_red.png"
+            },
+            slot_frames: {
+                spell_slot: "assets/witch_warlock/ui/frames/ability_round_empty.png",
+                spell_slot_1: "assets/witch_warlock/ui/spell_slots/ability_slot_1.png",
+                spell_slot_2: "assets/witch_warlock/ui/spell_slots/ability_slot_2.png",
+                spell_slot_3: "assets/witch_warlock/ui/spell_slots/ability_slot_3.png",
+                spell_slot_4: "assets/witch_warlock/ui/spell_slots/ability_slot_4.png",
+                spell_slot_5: "assets/witch_warlock/ui/spell_slots/ability_slot_5.png",
+                upgrade_frame: "assets/witch_warlock/ui/frames/rare.png",
+                inventory_slot: "assets/witch_warlock/ui/frames/inventory_square_empty.png"
+            },
+            panels: {
+                title_banner: "assets/witch_warlock/ui/panels/title_banner.png"
+            },
+            buttons: {
+                pause_button: "assets/witch_warlock/ui/buttons/pause.png",
+                play_button: "assets/witch_warlock/ui/buttons/play.png",
+                settings_button: "assets/witch_warlock/ui/buttons/gear.png",
+                help_button: "assets/witch_warlock/ui/buttons/round_book.png",
+                restart_button: "assets/witch_warlock/ui/buttons/round_star.png"
+            },
+            banners: {
+                level_complete_banner: "assets/witch_warlock/ui/banners/victory_level_complete.png",
+                defeat_banner: "assets/witch_warlock/ui/banners/defeat_banner.png"
+            },
+            bars: {},
+            decorative: {
+                common_frame: "assets/witch_warlock/ui/frames/common.png",
+                epic_frame: "assets/witch_warlock/ui/frames/epic.png"
+            }
+        };
+        const witchAssetSkipList = {
+            "ui/hud/health_mana_frame.png": "Contains fixed health and mana values.",
+            "ui/hud/xp_bar_level_12.png": "Reserved from dynamic XP use; XP is game-rendered.",
+            "ui/hud/coin_counter.png": "Contains fixed currency value.",
+            "ui/hud/timer_frame.png": "Contains fixed time value.",
+            "ui/hud/minimap_frame.png": "Not used by this game mode.",
+            "ui/panels/pause_menu_panel.png": "Contains fixed menu labels.",
+            "ui/panels/level_up_panel.png": "Contains fixed upgrade names/descriptions.",
+            "ui/panels/inventory_panel_full.png": "May contain fixed inventory slots/counts.",
+            "ui/panels/character_stats_panel.png": "Contains fixed stat values.",
+            "ui/panels/objective_panel.png": "Contains fixed objective text.",
+            "ui/panels/quests_panel.png": "Contains fixed quest text/progress.",
+            "ui/panels/settings_sliders_panel.png": "Contains fixed settings labels/values.",
+            "ui/frames/arcane_amulet_tooltip.png": "Contains fixed tooltip text.",
+            "ui/cards/*.png": "Full cards contain baked names/descriptions; only cropped art regions are used."
+        };
+        const witchAssets = {};
+        const witchAssetDefinitions = flattenWitchAssetManifest(witchAssetManifest);
+        const spellIconDataUrls = {};
+        let witchAssetsReady = false;
+
+        function preloadWitchAssets() {
+            const loaders = Object.entries(witchAssetDefinitions).map(([key, definition]) => new Promise(resolve => {
+                const image = new Image();
+                image.onload = () => {
+                    witchAssets[key] = image;
+                    resolve({ key, ok: true });
+                };
+                image.onerror = () => {
+                    console.warn(`[Witchlight Survivor] Missing safe UI asset: ${key} (${definition.path})`);
+                    resolve({ key, ok: false });
+                };
+                image.src = definition.path;
+            }));
+
+            return Promise.all(loaders).then(results => {
+                witchAssetsReady = results.some(result => result.ok);
+                const missing = results.filter(result => !result.ok).length;
+                if (missing) console.warn(`[Witchlight Survivor] ${missing} UI assets failed to load; fallback UI remains active.`);
+                if (assetPreloadNote) assetPreloadNote.style.display = "none";
+                return results;
+            });
+        }
+
+        function flattenWitchAssetManifest(manifest) {
+            const entries = {};
+            Object.values(manifest).forEach(category => {
+                Object.entries(category).forEach(([key, value]) => {
+                    entries[key] = typeof value === "string" ? { path: value } : value;
+                });
+            });
+            return entries;
+        }
+
+        function getAsset(key) {
+            return witchAssets[key] || null;
+        }
+
+        function getAssetDefinition(key) {
+            return witchAssetDefinitions[key] || null;
+        }
+
+        function drawCroppedSpellIcon(key, x, y, w, h) {
+            const image = getAsset(key);
+            const definition = getAssetDefinition(key);
+            if (!image || !definition || !definition.crop) return false;
+            ctx.save();
+            const crop = definition.crop;
+            ctx.drawImage(image, crop[0], crop[1], crop[2], crop[3], x, y, w, h);
+            ctx.restore();
+            return true;
+        }
+
+        function getCroppedSpellIconDataUrl(key) {
+            if (spellIconDataUrls[key]) return spellIconDataUrls[key];
+            const image = getAsset(key);
+            const definition = getAssetDefinition(key);
+            if (!image || !definition || !definition.crop) return "";
+
+            const iconCanvas = document.createElement("canvas");
+            iconCanvas.width = 96;
+            iconCanvas.height = 96;
+            const iconCtx = iconCanvas.getContext && iconCanvas.getContext("2d");
+            if (!iconCtx || !iconCanvas.toDataURL) return "";
+
+            const crop = definition.crop;
+            iconCtx.drawImage(image, crop[0], crop[1], crop[2], crop[3], 0, 0, iconCanvas.width, iconCanvas.height);
+            try {
+                spellIconDataUrls[key] = iconCanvas.toDataURL("image/png");
+            } catch (error) {
+                spellIconDataUrls[key] = "";
+            }
+            return spellIconDataUrls[key];
+        }
 
         let keys = {};
         document.addEventListener("keydown", event => keys[event.code] = true);
@@ -238,14 +512,14 @@
         ];
 
         const upgradeDefinitions = {
-            damage: { title: "Sharper Lasers", desc: "+10 projectile damage", max: 8, apply: () => { player.projDamage += 10; player.upgrades.damage++; } },
-            firerate: { title: "Overclock Blasters", desc: "Shoot 15% faster", max: 7, apply: () => { player.fireRate = Math.max(135, player.fireRate * 0.85); player.upgrades.firerate++; } },
-            speed: { title: "Thruster Boots", desc: "+0.45 move speed", max: 6, apply: () => { player.speed += 0.45; player.upgrades.speed++; } },
-            health: { title: "Reinforced Core", desc: "+25 max health and heal", max: 6, apply: () => { player.maxHp += 25; player.hp = Math.min(player.maxHp, player.hp + 50); player.upgrades.health++; } },
-            pickup: { title: "Magnet Field", desc: "+24 pickup radius", max: 5, apply: () => { player.pickupRadius += 24; player.upgrades.pickup++; } },
-            projectile: { title: "Twin Barrel", desc: "+1 projectile per volley", max: 4, apply: () => { player.projectileCount++; player.upgrades.projectile++; } },
-            pierce: { title: "Piercing Shot", desc: "Shots pass through +1 enemy", max: 3, apply: () => { player.pierce++; player.upgrades.pierce++; } },
-            orbit: { title: "Orbit Blade", desc: "Adds a rotating defensive blade", max: 3, apply: () => { player.orbitBlades++; player.upgrades.orbit++; } }
+            damage: { title: "Arcane Blast", desc: "+10 spell damage", iconKey: "arcane_blast", slotKey: "spell_slot_1", max: 8, apply: () => { player.projDamage += 10; player.upgrades.damage++; } },
+            firerate: { title: "Cursed Fire", desc: "Cast 15% faster", iconKey: "cursed_fire", slotKey: "spell_slot_2", max: 7, apply: () => { player.fireRate = Math.max(135, player.fireRate * 0.85); player.upgrades.firerate++; } },
+            speed: { title: "Moonstep Charm", desc: "+0.45 move speed", iconKey: "moonlight_orb", slotKey: "spell_slot_3", max: 6, apply: () => { player.speed += 0.45; player.upgrades.speed++; } },
+            health: { title: "Soul Drain", desc: "+25 max health and heal", iconKey: "soul_drain", slotKey: "spell_slot_4", max: 6, apply: () => { player.maxHp += 25; player.hp = Math.min(player.maxHp, player.hp + 50); player.upgrades.health++; } },
+            pickup: { title: "Potion Mastery", desc: "+24 pickup radius", iconKey: "potion_mastery", slotKey: "spell_slot_5", max: 5, apply: () => { player.pickupRadius += 24; player.upgrades.pickup++; } },
+            projectile: { title: "Crystal Spikes", desc: "+1 projectile per volley", iconKey: "crystal_spikes", slotKey: "spell_slot_1", max: 4, apply: () => { player.projectileCount++; player.upgrades.projectile++; } },
+            pierce: { title: "Piercing Rune", desc: "Shots pass through +1 enemy", iconKey: "arcane_blast", slotKey: "spell_slot_2", max: 3, apply: () => { player.pierce++; player.upgrades.pierce++; } },
+            orbit: { title: "Moonlight Orb", desc: "Adds a rotating defensive orb", iconKey: "moonlight_orb", slotKey: "spell_slot_3", max: 3, apply: () => { player.orbitBlades++; player.upgrades.orbit++; } }
         };
 
         function initGame() {
@@ -294,6 +568,7 @@
 
             clearTimeout(phaseBannerTimer);
             overlayScreen.style.display = "none";
+            pauseScreen.style.display = "none";
             levelUpScreen.style.display = "none";
             showPhaseBanner(phases[currentPhaseIndex].title);
             updateHud();
@@ -404,7 +679,7 @@
                     damage: player.projDamage,
                     pierce: player.pierce,
                     hitIds: {},
-                    color: "#f8fafc",
+                    color: player.upgrades.firerate > 0 ? "#f97316" : "#d8b4fe",
                     life: 105
                 });
             }
@@ -431,7 +706,17 @@
                 const button = document.createElement("button");
                 button.type = "button";
                 button.className = "btn-purple upgrade-card";
-                button.innerHTML = `${upgrade.title}<span class="upgrade-desc">${upgrade.desc}</span>`;
+                const art = document.createElement("span");
+                art.className = "upgrade-art";
+                const iconUrl = getCroppedSpellIconDataUrl(upgrade.iconKey);
+                if (iconUrl) art.style.backgroundImage = `url("${iconUrl}")`;
+                const title = document.createElement("span");
+                title.className = "upgrade-title";
+                title.textContent = upgrade.title;
+                const desc = document.createElement("span");
+                desc.className = "upgrade-desc";
+                desc.textContent = upgrade.desc;
+                button.append(art, title, desc);
                 button.addEventListener("click", () => selectUpgrade(id));
                 upgradeChoices.appendChild(button);
             });
@@ -687,7 +972,7 @@
         }
 
         function draw() {
-            ctx.fillStyle = "#0f172a";
+            ctx.fillStyle = "#120d1d";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.save();
             ctx.translate(canvas.width / 2 - player.x, canvas.height / 2 - player.y);
@@ -699,10 +984,12 @@
             drawEffects();
             drawPlayer();
             ctx.restore();
+            drawWitchHud();
         }
 
         function drawGrid() {
-            ctx.strokeStyle = "#1e293b";
+            drawWorldMagicBackdrop();
+            ctx.strokeStyle = "rgba(88, 28, 135, 0.42)";
             ctx.lineWidth = 2;
             const gridSize = 100;
             const startX = Math.floor((player.x - canvas.width / 2) / gridSize) * gridSize;
@@ -719,14 +1006,150 @@
             ctx.stroke();
         }
 
+        function drawWorldMagicBackdrop() {
+            const centerX = Math.floor(player.x / 260) * 260;
+            const centerY = Math.floor(player.y / 260) * 260;
+            ctx.save();
+            ctx.strokeStyle = "rgba(216, 180, 254, 0.11)";
+            ctx.lineWidth = 3;
+            for (let x = centerX - 780; x <= centerX + 780; x += 260) {
+                for (let y = centerY - 780; y <= centerY + 780; y += 260) {
+                    ctx.beginPath();
+                    ctx.arc(x, y, 42, 0, Math.PI * 2);
+                    ctx.moveTo(x - 30, y);
+                    ctx.lineTo(x + 30, y);
+                    ctx.moveTo(x, y - 30);
+                    ctx.lineTo(x, y + 30);
+                    ctx.stroke();
+                }
+            }
+            ctx.restore();
+        }
+
+        // UI drawing helpers for the Witch & Warlock PNG overlay.
+        function drawWitchHud() {
+            drawHudPanel(16, 14, 214, 76);
+            drawHudIcon("health_icon", 30, 30, 32, 32, "#f43f5e");
+            drawHudBar(72, 30, 130, 14, player.hp / player.maxHp, "#dc2626", "#fda4af");
+            ctx.fillStyle = "#fff7d6";
+            ctx.font = "bold 12px Segoe UI";
+            ctx.textAlign = "left";
+            ctx.fillText(`${Math.max(0, Math.ceil(player.hp))}/${player.maxHp}`, 74, 61);
+
+            drawHudPanel(282, 12, 236, 58);
+            drawCenteredHudText(formatTime(gameTime), 400, 47, "bold 24px Segoe UI", "#f7e8c6");
+
+            drawHudPanel(574, 14, 210, 68);
+            drawHudIcon("purple_crystal", 592, 30, 30, 30, "#a855f7");
+            ctx.fillStyle = "#fff7d6";
+            ctx.font = "bold 15px Segoe UI";
+            ctx.textAlign = "left";
+            ctx.fillText(`Score ${score}`, 630, 43);
+            ctx.fillStyle = "#e9d5ff";
+            ctx.font = "bold 12px Segoe UI";
+            ctx.fillText(`Kills ${kills}  Phase ${phases[currentPhaseIndex].label}`, 630, 62);
+
+            drawHudPanel(164, canvas.height - 62, 472, 26);
+            drawHudBar(188, canvas.height - 52, 424, 8, player.xp / player.xpToNext, "#7c3aed", "#f6d56e");
+            drawCenteredHudText(`Level ${player.level}   ${player.xp}/${player.xpToNext} XP`, 400, canvas.height - 66, "bold 12px Segoe UI", "#f7e8c6");
+            drawSpellSlots();
+        }
+
+        function drawHudPanel(x, y, w, h, assetKey) {
+            if (drawAsset(assetKey, x, y, w, h)) return;
+            ctx.save();
+            ctx.fillStyle = "rgba(30, 20, 48, 0.78)";
+            ctx.strokeStyle = "rgba(246, 213, 110, 0.7)";
+            ctx.lineWidth = 2;
+            ctx.fillRect(x, y, w, h);
+            ctx.strokeRect(x, y, w, h);
+            ctx.restore();
+        }
+
+        function drawHudIcon(assetKey, x, y, w, h, fallbackColor) {
+            if (drawAsset(assetKey, x, y, w, h)) return;
+            ctx.save();
+            ctx.fillStyle = fallbackColor;
+            ctx.beginPath();
+            ctx.arc(x + w / 2, y + h / 2, Math.min(w, h) / 2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function drawHudBar(x, y, w, h, ratio, color, glow) {
+            const fillRatio = Math.max(0, Math.min(1, ratio || 0));
+            ctx.save();
+            ctx.fillStyle = "rgba(15, 10, 24, 0.82)";
+            ctx.fillRect(x, y, w, h);
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = glow;
+            const gradient = ctx.createLinearGradient(x, y, x + w, y);
+            gradient.addColorStop(0, color);
+            gradient.addColorStop(1, glow);
+            ctx.fillStyle = gradient;
+            ctx.fillRect(x, y, w * fillRatio, h);
+            ctx.restore();
+        }
+
+        function drawCenteredHudText(text, x, y, font, color) {
+            ctx.save();
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = "#a855f7";
+            ctx.fillStyle = color;
+            ctx.font = font;
+            ctx.textAlign = "center";
+            ctx.fillText(text, x, y);
+            ctx.restore();
+        }
+
+        function drawSpellSlots() {
+            const unlocked = getVisibleSpellSlots();
+            const size = 46;
+            const gap = 10;
+            const total = 5 * size + 4 * gap;
+            const startX = canvas.width / 2 - total / 2;
+            const y = canvas.height - 110;
+            for (let i = 0; i < 5; i++) {
+                const x = startX + i * (size + gap);
+                drawAsset(`spell_slot_${i + 1}`, x, y, size, size) || drawAsset("spell_slot", x, y, size, size);
+                const spell = unlocked[i];
+                if (spell) {
+                    drawCroppedSpellIcon(spell.iconKey, x + 7, y + 7, size - 14, size - 14);
+                    ctx.fillStyle = "#fff7d6";
+                    ctx.font = "bold 11px Segoe UI";
+                    ctx.textAlign = "center";
+                    ctx.fillText(`x${spell.count}`, x + size / 2, y + size + 12);
+                }
+            }
+        }
+
+        function getVisibleSpellSlots() {
+            return Object.keys(upgradeDefinitions)
+                .map(id => ({ id, ...upgradeDefinitions[id], count: player.upgrades[id] || 0 }))
+                .filter(item => item.count > 0)
+                .slice(0, 5);
+        }
+
+        function drawAsset(key, x, y, w, h, alpha) {
+            const image = getAsset(key);
+            if (!image) return false;
+            ctx.save();
+            if (alpha !== undefined) ctx.globalAlpha = alpha;
+            ctx.drawImage(image, x, y, w, h);
+            ctx.restore();
+            return true;
+        }
+
         function drawGems() {
             gems.forEach(gem => {
                 ctx.shadowBlur = 12;
-                ctx.shadowColor = "#eab308";
-                ctx.fillStyle = "#eab308";
-                ctx.beginPath();
-                ctx.arc(gem.x, gem.y, gem.radius, 0, Math.PI * 2);
-                ctx.fill();
+                ctx.shadowColor = "#d8b4fe";
+                if (!drawAsset("xp_star", gem.x - gem.radius - 4, gem.y - gem.radius - 4, (gem.radius + 4) * 2, (gem.radius + 4) * 2)) {
+                    ctx.fillStyle = "#d8b4fe";
+                    ctx.beginPath();
+                    ctx.arc(gem.x, gem.y, gem.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                }
                 ctx.fillStyle = "rgba(234, 179, 8, 0.18)";
                 ctx.beginPath();
                 ctx.arc(gem.x, gem.y, gem.radius + 7, 0, Math.PI * 2);
@@ -747,6 +1170,9 @@
                     ctx.beginPath();
                     ctx.arc(enemy.x, enemy.y, enemy.radius * 0.45, 0, Math.PI * 2);
                     ctx.fill();
+                }
+                if (enemy.boss) {
+                    drawAsset("boss_badge", enemy.x - 18, enemy.y - enemy.radius - 42, 36, 36);
                 }
                 if (enemy.hp < enemy.maxHp || enemy.boss) {
                     ctx.shadowBlur = 0;
@@ -780,11 +1206,13 @@
         function drawOrbitBlades() {
             getOrbitBladePositions().forEach(blade => {
                 ctx.shadowBlur = 16;
-                ctx.shadowColor = "#22c55e";
-                ctx.fillStyle = "#22c55e";
-                ctx.beginPath();
-                ctx.arc(blade.x, blade.y, blade.radius, 0, Math.PI * 2);
-                ctx.fill();
+                ctx.shadowColor = "#d8b4fe";
+                if (!drawCroppedSpellIcon("moonlight_orb", blade.x - blade.radius, blade.y - blade.radius, blade.radius * 2, blade.radius * 2)) {
+                    ctx.fillStyle = "#d8b4fe";
+                    ctx.beginPath();
+                    ctx.arc(blade.x, blade.y, blade.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                }
             });
         }
 
@@ -814,10 +1242,21 @@
 
         function drawPlayer() {
             ctx.shadowBlur = 16;
-            ctx.shadowColor = player.color;
-            ctx.fillStyle = player.color;
+            ctx.shadowColor = "#a855f7";
+            ctx.fillStyle = "#4c1d95";
             ctx.beginPath();
             ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#f7e8c6";
+            ctx.beginPath();
+            ctx.arc(player.x, player.y - 6, player.radius * 0.58, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#1f1230";
+            ctx.beginPath();
+            ctx.moveTo(player.x - 13, player.y - 14);
+            ctx.lineTo(player.x, player.y - 34);
+            ctx.lineTo(player.x + 13, player.y - 14);
+            ctx.closePath();
             ctx.fill();
             ctx.shadowBlur = 0;
             ctx.strokeStyle = "#f43f5e";
@@ -843,6 +1282,7 @@
             finalTimeDisplay.innerText = formatTime(gameTime);
             runSummary.textContent = `Best Time: ${formatTime(bestTime)}\nScore: ${score}\nLevel: ${player.level}\nKills: ${kills}\nPhase Reached: ${phases[currentPhaseIndex].label}`;
             overlayScreen.style.display = "block";
+            pauseScreen.style.display = "none";
         }
 
         function resetGame() {
@@ -852,11 +1292,16 @@
             gameLoop();
         }
 
+        function resumeFromPauseMenu() {
+            const pauseButton = document.querySelector(".arcade-pause-btn");
+            if (pauseButton) pauseButton.click();
+        }
+
         window.ArcadeControls.init({
             instructions: [
                 "Move with WASD, arrow keys, or the mobile joystick.",
-                "Weapons fire automatically at nearby enemies.",
-                "Collect yellow gems to level up and choose upgrades.",
+                "Spells fire automatically at nearby enemies.",
+                "Collect glowing XP stars to level up and choose spell upgrades.",
                 "Enemy phases add fast, tank, ranged, and mini-boss threats over time.",
                 "Esc pauses, R restarts, H opens this panel."
             ],
@@ -867,10 +1312,12 @@
                 if (!isControlPaused) {
                     isControlPaused = true;
                     isPaused = true;
+                    pauseScreen.style.display = "block";
                     pauseStartTime = Date.now();
                     keys = {};
                 } else {
                     isControlPaused = false;
+                    pauseScreen.style.display = "none";
                     startTime += Date.now() - pauseStartTime;
                     lastFrameTime = Date.now();
                     isPaused = false;
@@ -892,7 +1339,7 @@
                 keys.ArrowUp = false;
                 keys.ArrowDown = false;
             },
-            shouldHide: () => isGameOver || overlayScreen.style.display === "block" || levelUpScreen.style.display === "block"
+            shouldHide: () => isGameOver || isControlPaused || overlayScreen.style.display === "block" || pauseScreen.style.display === "block" || levelUpScreen.style.display === "block"
         });
 
         function gameLoop() {
@@ -901,8 +1348,17 @@
             if (!isGameOver) animationId = requestAnimationFrame(gameLoop);
         }
 
-        initGame();
-        gameLoop();
+        function startSurvivor() {
+            initGame();
+            gameLoop();
+        }
+
+        preloadWitchAssets()
+            .catch(error => {
+                console.warn("[Witchlight Survivor] UI asset preload failed; using fallback UI.", error);
+                if (assetPreloadNote) assetPreloadNote.style.display = "none";
+            })
+            .finally(startSurvivor);
     </script>
 </body>
 </html>
