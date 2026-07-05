@@ -272,6 +272,52 @@
             line-height: 1.2;
         }
 
+        .character-card .character-class {
+            color: #d8b4fe;
+            font-size: 0.68rem;
+            margin-top: 3px;
+        }
+
+        .character-detail {
+            text-align: left;
+            color: #f7e8c6;
+            background: rgba(15, 10, 24, 0.72);
+            border: 1px solid rgba(246, 213, 110, 0.42);
+            border-radius: 8px;
+            padding: 12px 14px;
+            margin: 0 0 12px;
+            line-height: 1.35;
+        }
+
+        .character-detail h3 {
+            margin: 0 0 4px;
+            color: #f6d56e;
+            font-size: 1rem;
+        }
+
+        .character-detail p {
+            margin: 4px 0;
+            color: #e9d5ff;
+            font-size: 0.78rem;
+        }
+
+        .character-detail .stat-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .character-detail .stat-pill {
+            border: 1px solid rgba(216, 180, 254, 0.38);
+            border-radius: 999px;
+            padding: 3px 7px;
+            color: #fff7d6;
+            background: rgba(88, 28, 135, 0.36);
+            font-size: 0.68rem;
+            white-space: nowrap;
+        }
+
         .selected-character-label {
             color: #f6d56e;
             margin-bottom: 12px;
@@ -312,6 +358,10 @@
             .character-card img {
                 height: 88px;
             }
+
+            .character-detail {
+                font-size: 0.9rem;
+            }
         }
     </style>
 </head>
@@ -341,11 +391,12 @@
             <div id="character-select-screen" class="screen-overlay">
                 <img class="survivor-banner-img" src="assets/witch_warlock/ui/panels/title_banner.png" alt="" aria-hidden="true">
                 <h2 style="color: #f6d56e; text-shadow: 0 0 10px #a855f7;">CHOOSE YOUR CASTER</h2>
-                <div class="character-select-copy">Pick a witch or warlock for this run. Gameplay stays the same; this changes your character sprite.</div>
+                <div class="character-select-copy">Pick a witch or warlock for this run. Each caster has different stats, a starting spell, and a passive.</div>
                 <div id="character-grid" class="character-grid"></div>
+                <div id="character-detail" class="character-detail"></div>
                 <div id="selected-character-label" class="selected-character-label">Selected: Loading...</div>
                 <button id="start-run-button" class="btn-purple" type="button">START RUN</button>
-                <button class="lobby-btn" onclick="window.location.href='../../index.html'">BACK TO LOBBY</button>
+                <button class="lobby-btn" onclick="window.location.href='../../index.html'">RETURN TO MENU</button>
             </div>
 
             <!-- Pause Screen -->
@@ -353,22 +404,22 @@
                 <img class="survivor-banner-img" src="assets/witch_warlock/ui/panels/title_banner.png" alt="" aria-hidden="true">
                 <h2 style="color: #f6d56e; text-shadow: 0 0 10px #a855f7;">PAUSED</h2>
                 <button class="btn-purple" onclick="resumeFromPauseMenu()">RESUME</button>
-                <button class="lobby-btn" onclick="window.location.href='../../index.html'">BACK TO LOBBY</button>
+                <button class="lobby-btn" onclick="window.location.href='../../index.html'">RETURN TO MENU</button>
             </div>
         
             <!-- Game Over Screen -->
             <div id="overlay-screen" class="screen-overlay">
             <img class="survivor-banner-img" src="assets/witch_warlock/ui/banners/defeat_banner.png" alt="" aria-hidden="true">
-            <h2 id="end-title" style="color: #f43f5e; text-shadow: 0 0 10px #f43f5e;">CURSE CLAIMED</h2>
+            <h2 id="end-title" style="color: #f43f5e; text-shadow: 0 0 10px #f43f5e;">DEFEAT</h2>
             <div class="survived-time">Survived: <span id="final-time">0:00</span></div>
             <div id="run-summary" class="summary-lines"></div>
-            <button class="btn-cyan" onclick="resetGame()">RETRY</button>
-            <button class="lobby-btn" onclick="window.location.href='../../index.html'">BACK TO LOBBY</button>
+            <button class="btn-cyan" onclick="resetGame()">RESTART RUN</button>
+            <button class="lobby-btn" onclick="window.location.href='../../index.html'">RETURN TO MENU</button>
         </div>
 
         <!-- Level Up Screen -->
         <div id="level-up-screen" class="screen-overlay">
-            <h2 style="color: #f6d56e; text-shadow: 0 0 10px #a855f7;">SPELLBOOK OPENS!</h2>
+            <h2 style="color: #f6d56e; text-shadow: 0 0 10px #a855f7;">LEVEL UP</h2>
             <div id="upgrade-choices" class="upgrade-grid">
                 <button class="btn-purple upgrade-card" onclick="selectUpgrade('damage')">
                     Increase Damage
@@ -410,11 +461,15 @@
         const assetPreloadNote = document.getElementById("asset-preload-note");
         const characterSelectScreen = document.getElementById("character-select-screen");
         const characterGrid = document.getElementById("character-grid");
+        const characterDetail = document.getElementById("character-detail");
         const selectedCharacterLabel = document.getElementById("selected-character-label");
         const startRunButton = document.getElementById("start-run-button");
 
-        const PLAYER_SPRITE_SIZE = 54;
+        const PLAYER_SPRITE_HEIGHT = 54;
+        const PLAYER_HITBOX_RADIUS = 15;
+        const PLAYER_SPRITE_SIZE = PLAYER_SPRITE_HEIGHT;
         const PLAYER_SPRITE_Y_OFFSET = -8;
+        const GROUND_TEXTURE_SCALE = 0.45;
         const ENEMY_SPRITE_SIZES = {
             common: 44,
             medium: 58,
@@ -494,17 +549,135 @@
         const spellIconDataUrls = {};
         let witchAssetsReady = false;
 
+        // Data-driven caster roster. Balance lives here so characters can be tuned safely later.
+        const playerRoster = [
+            {
+                id: "varric_bottlehex",
+                displayName: "Varric Bottlehex",
+                className: "Potion Warlock",
+                assetPath: "characters/warlock_player_1.png",
+                shortBio: "A wandering alchemist-warlock who keeps dangerous brews strapped to his coat and solves problems with unstable magic.",
+                maxHealth: 130,
+                moveSpeedMult: 0.90,
+                damageMult: 1.00,
+                fireRateMult: 0.95,
+                cooldownMult: 0.95,
+                pickupRadiusMult: 1.00,
+                armor: 2,
+                critChance: 0.05,
+                luck: 0.10,
+                startingSpell: "Potion Burst",
+                passiveName: "Alchemist's Satchel",
+                passiveDescription: "Healing and potion pickups restore 20% more, and explosive/potion-style attacks gain a small area bonus."
+            },
+            {
+                id: "orion_blackquill",
+                displayName: "Orion Blackquill",
+                className: "Tome Warlock",
+                assetPath: "characters/warlock_player_2.png",
+                shortBio: "A scholar of forbidden moon-script whose floating grimoire fires spells before he even raises a hand.",
+                maxHealth: 95,
+                moveSpeedMult: 1.00,
+                damageMult: 1.20,
+                fireRateMult: 1.05,
+                cooldownMult: 0.90,
+                pickupRadiusMult: 0.95,
+                armor: 0,
+                critChance: 0.10,
+                luck: 0.05,
+                startingSpell: "Moonlit Grimoire",
+                passiveName: "Forbidden Study",
+                passiveDescription: "Gains 10% more XP and has slightly reduced spell cooldowns, but starts with lower health."
+            },
+            {
+                id: "mimi_nightpaw",
+                displayName: "Mimi Nightpaw",
+                className: "Familiar Witch",
+                assetPath: "characters/witch_player_1.png",
+                shortBio: "A mischievous young witch whose black cat familiar swats, scratches, and hexes anything that gets too close.",
+                maxHealth: 85,
+                moveSpeedMult: 1.20,
+                damageMult: 0.90,
+                fireRateMult: 1.15,
+                cooldownMult: 0.95,
+                pickupRadiusMult: 1.15,
+                armor: 0,
+                critChance: 0.12,
+                luck: 0.15,
+                startingSpell: "Familiar Hex",
+                passiveName: "Catlike Reflexes",
+                passiveDescription: "Moves faster, has higher crit chance, and gains a small pickup radius bonus."
+            },
+            {
+                id: "elowen_briarwick",
+                displayName: "Elowen Briarwick",
+                className: "Forest Witch",
+                assetPath: "characters/witch_player_2.png",
+                shortBio: "A gentle hedge witch who carries forest magic in her cloak, calling roots, herbs, and crystals to protect her.",
+                maxHealth: 105,
+                moveSpeedMult: 1.00,
+                damageMult: 1.00,
+                fireRateMult: 1.00,
+                cooldownMult: 1.00,
+                pickupRadiusMult: 1.25,
+                armor: 1,
+                critChance: 0.05,
+                luck: 0.15,
+                startingSpell: "Briar Crystal",
+                passiveName: "Wildwood Blessing",
+                passiveDescription: "Slightly tougher than average, has a larger pickup radius, and occasionally slows enemies hit by spells."
+            },
+            {
+                id: "selene_frostglass",
+                displayName: "Selene Frostglass",
+                className: "Crystal Witch",
+                assetPath: "characters/witch_player_3.png",
+                shortBio: "A cold-star witch who channels moonlit crystal through her staff, trading speed for devastating magical bursts.",
+                maxHealth: 90,
+                moveSpeedMult: 0.95,
+                damageMult: 1.25,
+                fireRateMult: 0.90,
+                cooldownMult: 1.05,
+                pickupRadiusMult: 0.90,
+                armor: 1,
+                critChance: 0.15,
+                luck: 0.00,
+                startingSpell: "Crystal Spikes",
+                passiveName: "Shard Focus",
+                passiveDescription: "Deals high damage and has increased crit chance, but attacks slightly slower and has a smaller pickup radius."
+            },
+            {
+                id: "morna_widdershade",
+                displayName: "Morna Widdershade",
+                className: "Hedge Hag",
+                assetPath: "characters/witch_player_4.png",
+                shortBio: "An ancient swamp-wise witch wrapped in herbs, charms, and old lantern magic, impossible to push out of the circle.",
+                maxHealth: 145,
+                moveSpeedMult: 0.82,
+                damageMult: 0.95,
+                fireRateMult: 0.85,
+                cooldownMult: 1.00,
+                pickupRadiusMult: 1.05,
+                armor: 3,
+                critChance: 0.03,
+                luck: 0.20,
+                startingSpell: "Lantern Rot",
+                passiveName: "Old Magic",
+                passiveDescription: "Very durable and lucky, with minor lifesteal or regeneration if the game supports it, but moves and attacks slowly."
+            }
+        ];
+
         // Character asset manifest. Files remain in games/survivor/characters.
         const characterAssetManifest = {
             player_warlocks: [
-                { id: "warlock_player_1", label: "Warlock 1", path: "characters/warlock_player_1.png" },
-                { id: "warlock_player_2", label: "Warlock 2", path: "characters/warlock_player_2.png" }
+                { id: "varric_bottlehex", label: "Varric Bottlehex", path: "characters/warlock_player_1.png" },
+                { id: "orion_blackquill", label: "Orion Blackquill", path: "characters/warlock_player_2.png" }
             ],
             player_witches: [
-                { id: "witch_player_1", label: "Witch 1", path: "characters/witch_player_1.png" },
-                { id: "witch_player_2", label: "Witch 2", path: "characters/witch_player_2.png" },
-                { id: "witch_player_3", label: "Witch 3", path: "characters/witch_player_3.png" },
-                { id: "witch_player_4", label: "Witch 4", path: "characters/witch_player_4.png" }
+                { id: "mimi_nightpaw", label: "Mimi Nightpaw", path: "characters/witch_player_1.png" },
+                { id: "elowen_briarwick", label: "Elowen Briarwick", path: "characters/witch_player_2.png" },
+                { id: "selene_frostglass", label: "Selene Frostglass", path: "characters/witch_player_3.png" },
+                { id: "morna_widdershade", label: "Morna Widdershade", path: "characters/witch_player_4.png" }
             ],
             enemies_common: [
                 { id: "enemy_common_familiar", label: "Familiar", path: "characters/enemy_common_familiar.png" },
@@ -524,7 +697,10 @@
             ]
         };
         const characterAssets = {};
-        const playerCharacterChoices = characterAssetManifest.player_warlocks.concat(characterAssetManifest.player_witches);
+        const groundTextureAsset = { id: "ground_texture", path: "characters/ground_texture.png" };
+        let groundTextureImage = null;
+        let groundTexturePattern = null;
+        const playerCharacterChoices = playerRoster;
         let selectedCharacterId = playerCharacterChoices[0].id;
         let runStarted = false;
 
@@ -572,11 +748,29 @@
             return Promise.all(loaders);
         }
 
+        // Ground texture loading. If it fails, the original programmatic floor remains visible.
+        function preloadGroundTexture() {
+            return new Promise(resolve => {
+                const image = new Image();
+                image.onload = () => {
+                    groundTextureImage = image;
+                    resolve({ key: groundTextureAsset.id, ok: true });
+                };
+                image.onerror = () => {
+                    console.warn(`[Witchlight Survivor] Missing ground texture: ${groundTextureAsset.path}`);
+                    resolve({ key: groundTextureAsset.id, ok: false });
+                };
+                image.src = groundTextureAsset.path;
+            });
+        }
+
         function preloadGameAssets() {
-            return Promise.all([preloadWitchAssets(), preloadCharacterAssets()]).then(results => {
+            return Promise.all([preloadWitchAssets(), preloadCharacterAssets(), preloadGroundTexture()]).then(results => {
                 const characterResults = results[1] || [];
+                const groundResult = results[2];
                 const missingCharacters = characterResults.filter(result => !result.ok).length;
                 if (missingCharacters) console.warn(`[Witchlight Survivor] ${missingCharacters} character assets failed to load; shape fallbacks remain active.`);
+                if (groundResult && !groundResult.ok) console.warn("[Witchlight Survivor] Ground texture failed to load; fallback floor remains active.");
                 return results;
             });
         }
@@ -647,6 +841,14 @@
                 .replace(/\b\w/g, letter => letter.toUpperCase());
         }
 
+        function getSelectedCharacterConfig() {
+            return playerRoster.find(character => character.id === selectedCharacterId) || playerRoster[0];
+        }
+
+        function formatPercent(value) {
+            return `${Math.round(value * 100)}%`;
+        }
+
         // Character select screen. Gameplay starts only after Start Run.
         function buildCharacterSelect() {
             characterGrid.replaceChildren();
@@ -654,13 +856,16 @@
                 const button = document.createElement("button");
                 button.type = "button";
                 button.className = "character-card";
-                button.setAttribute("aria-label", `Select ${choice.label || formatCharacterLabel(choice.id)}`);
+                button.setAttribute("aria-label", `Select ${choice.displayName}`);
                 const image = document.createElement("img");
                 image.alt = "";
-                image.src = choice.path;
+                image.src = choice.assetPath;
                 const label = document.createElement("span");
-                label.textContent = choice.label || formatCharacterLabel(choice.id);
-                button.append(image, label);
+                label.textContent = choice.displayName;
+                const classLabel = document.createElement("span");
+                classLabel.className = "character-class";
+                classLabel.textContent = choice.className;
+                button.append(image, label, classLabel);
                 button.addEventListener("click", () => selectCharacter(choice.id));
                 characterGrid.appendChild(button);
             });
@@ -670,8 +875,24 @@
 
         function selectCharacter(id) {
             selectedCharacterId = id;
-            const choice = playerCharacterChoices.find(item => item.id === id);
-            selectedCharacterLabel.textContent = `Selected: ${choice ? choice.label : formatCharacterLabel(id)}`;
+            const choice = getSelectedCharacterConfig();
+            selectedCharacterLabel.textContent = `Selected: ${choice.displayName}`;
+            characterDetail.innerHTML = `
+                <h3>${choice.displayName} <span style="color:#d8b4fe;">- ${choice.className}</span></h3>
+                <p>${choice.shortBio}</p>
+                <p><strong>Starting Spell:</strong> ${choice.startingSpell}</p>
+                <p><strong>Passive:</strong> ${choice.passiveName} - ${choice.passiveDescription}</p>
+                <div class="stat-row">
+                    <span class="stat-pill">HP ${choice.maxHealth}</span>
+                    <span class="stat-pill">Move ${formatPercent(choice.moveSpeedMult)}</span>
+                    <span class="stat-pill">Damage ${formatPercent(choice.damageMult)}</span>
+                    <span class="stat-pill">Cast ${formatPercent(choice.fireRateMult / choice.cooldownMult)}</span>
+                    <span class="stat-pill">Pickup ${formatPercent(choice.pickupRadiusMult)}</span>
+                    <span class="stat-pill">Armor ${choice.armor}</span>
+                    <span class="stat-pill">Crit ${formatPercent(choice.critChance)}</span>
+                    <span class="stat-pill">Luck ${formatPercent(choice.luck)}</span>
+                </div>
+            `;
             Array.from(characterGrid.children).forEach((button, index) => {
                 button.classList.toggle("selected", playerCharacterChoices[index].id === id);
             });
@@ -736,7 +957,7 @@
             damage: { title: "Arcane Blast", desc: "+10 spell damage", iconKey: "arcane_blast", slotKey: "spell_slot_1", max: 8, apply: () => { player.projDamage += 10; player.upgrades.damage++; } },
             firerate: { title: "Cursed Fire", desc: "Cast 15% faster", iconKey: "cursed_fire", slotKey: "spell_slot_2", max: 7, apply: () => { player.fireRate = Math.max(135, player.fireRate * 0.85); player.upgrades.firerate++; } },
             speed: { title: "Moonstep Charm", desc: "+0.45 move speed", iconKey: "moonlight_orb", slotKey: "spell_slot_3", max: 6, apply: () => { player.speed += 0.45; player.upgrades.speed++; } },
-            health: { title: "Soul Drain", desc: "+25 max health and heal", iconKey: "soul_drain", slotKey: "spell_slot_4", max: 6, apply: () => { player.maxHp += 25; player.hp = Math.min(player.maxHp, player.hp + 50); player.upgrades.health++; } },
+            health: { title: "Soul Drain", desc: "+25 max health and heal", iconKey: "soul_drain", slotKey: "spell_slot_4", max: 6, apply: () => { player.maxHp += 25; player.hp = Math.min(player.maxHp, player.hp + 50 * (player.potionHealMult || 1)); player.upgrades.health++; } },
             pickup: { title: "Potion Mastery", desc: "+24 pickup radius", iconKey: "potion_mastery", slotKey: "spell_slot_5", max: 5, apply: () => { player.pickupRadius += 24; player.upgrades.pickup++; } },
             projectile: { title: "Crystal Spikes", desc: "+1 projectile per volley", iconKey: "crystal_spikes", slotKey: "spell_slot_1", max: 4, apply: () => { player.projectileCount++; player.upgrades.projectile++; } },
             pierce: { title: "Piercing Rune", desc: "Shots pass through +1 enemy", iconKey: "arcane_blast", slotKey: "spell_slot_2", max: 3, apply: () => { player.pierce++; player.upgrades.pierce++; } },
@@ -744,24 +965,38 @@
         };
 
         function initGame() {
+            const character = getSelectedCharacterConfig();
             player = {
                 x: 0, y: 0,
-                radius: 15,
-                speed: 4,
+                radius: PLAYER_HITBOX_RADIUS,
+                speed: 4 * character.moveSpeedMult,
                 color: "#06b6d4",
-                hp: 100, maxHp: 100,
+                hp: character.maxHealth, maxHp: character.maxHealth,
                 level: 1, xp: 0, xpToNext: 10,
-                fireRate: 800,
+                fireRate: Math.max(150, 800 * character.cooldownMult / character.fireRateMult),
                 projSpeed: 10,
-                projDamage: 25,
-                pickupRadius: 58,
+                projDamage: 25 * character.damageMult,
+                pickupRadius: 58 * character.pickupRadiusMult,
                 projectileCount: 1,
                 pierce: 0,
                 orbitBlades: 0,
                 orbitAngle: 0,
+                armor: character.armor,
+                critChance: character.critChance,
+                luck: character.luck,
+                xpGainMult: character.id === "orion_blackquill" ? 1.1 : 1,
+                potionHealMult: character.id === "varric_bottlehex" ? 1.2 : 1,
+                projectileRadiusBonus: character.id === "varric_bottlehex" ? 1.2 : 1,
+                slowChance: character.id === "elowen_briarwick" ? 0.12 : 0,
+                lifesteal: character.id === "morna_widdershade" ? 0.018 : 0,
                 spriteId: selectedCharacterId,
+                characterName: character.displayName,
+                characterClass: character.className,
+                startingSpell: character.startingSpell,
+                passiveName: character.passiveName,
                 upgrades: { damage: 0, firerate: 0, speed: 0, health: 0, pickup: 0, projectile: 0, pierce: 0, orbit: 0 }
             };
+            applyStartingSpell(player, character);
 
             enemies = [];
             projectiles = [];
@@ -797,6 +1032,33 @@
             showPhaseBanner(phases[currentPhaseIndex].title);
             updateHud();
             updateXpBar();
+        }
+
+        // Starting spell mapping uses existing weapon systems instead of adding a new combat framework.
+        function applyStartingSpell(targetPlayer, character) {
+            switch (character.startingSpell) {
+                case "Potion Burst":
+                    targetPlayer.projectileRadiusBonus = Math.max(targetPlayer.projectileRadiusBonus, 1.28);
+                    break;
+                case "Moonlit Grimoire":
+                    targetPlayer.orbitBlades = 1;
+                    targetPlayer.upgrades.orbit = 1;
+                    break;
+                case "Familiar Hex":
+                    targetPlayer.fireRate = Math.max(135, targetPlayer.fireRate * 0.92);
+                    break;
+                case "Briar Crystal":
+                    targetPlayer.pierce = 1;
+                    targetPlayer.upgrades.pierce = 1;
+                    break;
+                case "Crystal Spikes":
+                    targetPlayer.projectileCount = 2;
+                    targetPlayer.upgrades.projectile = 1;
+                    break;
+                case "Lantern Rot":
+                    targetPlayer.lifesteal = Math.max(targetPlayer.lifesteal, 0.022);
+                    break;
+            }
         }
 
         function getDist(x1, y1, x2, y2) {
@@ -922,7 +1184,7 @@
                     y: player.y,
                     vx: Math.cos(shotAngle) * player.projSpeed,
                     vy: Math.sin(shotAngle) * player.projSpeed,
-                    radius: 5,
+                    radius: 5 * (player.projectileRadiusBonus || 1),
                     damage: player.projDamage,
                     pierce: player.pierce,
                     hitIds: {},
@@ -1071,9 +1333,11 @@
             enemies.forEach(enemy => {
                 const dist = getDist(player.x, player.y, enemy.x, enemy.y);
                 const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
+                if (enemy.slowTimer > 0) enemy.slowTimer -= dt;
+                const speedMult = enemy.slowTimer > 0 ? 0.62 : 1;
                 if (!enemy.ranged || dist > 250) {
-                    enemy.x += Math.cos(angle) * enemy.speed * dt;
-                    enemy.y += Math.sin(angle) * enemy.speed * dt;
+                    enemy.x += Math.cos(angle) * enemy.speed * speedMult * dt;
+                    enemy.y += Math.sin(angle) * enemy.speed * speedMult * dt;
                 }
                 if (enemy.ranged && now - enemy.lastShot > enemy.fireRate) {
                     fireEnemyProjectile(enemy, angle);
@@ -1125,8 +1389,9 @@
                     gem.y += Math.sin(angle) * pull * dt;
                 }
                 if (dist < player.radius + gem.radius + 8) {
-                    player.xp += gem.value;
-                    addFloatingText(gem.x, gem.y, `+${gem.value} XP`, "#eab308");
+                    const xpValue = Math.max(1, Math.round(gem.value * (player.xpGainMult || 1)));
+                    player.xp += xpValue;
+                    addFloatingText(gem.x, gem.y, `+${xpValue} XP`, "#eab308");
                     gems.splice(i, 1);
                     while (player.xp >= player.xpToNext) {
                         levelUp();
@@ -1155,12 +1420,23 @@
         }
 
         function damageEnemy(enemy, amount, color) {
-            enemy.hp -= amount;
-            addFloatingText(enemy.x, enemy.y - enemy.radius, Math.ceil(amount), color || "#f8fafc");
+            let finalAmount = amount;
+            let text = Math.ceil(finalAmount);
+            let textColor = color || "#f8fafc";
+            if (Math.random() < (player.critChance || 0)) {
+                finalAmount *= 1.75;
+                text = `CRIT ${Math.ceil(finalAmount)}`;
+                textColor = "#f6d56e";
+            }
+            enemy.hp -= finalAmount;
+            if (player.slowChance && Math.random() < player.slowChance) enemy.slowTimer = Math.max(enemy.slowTimer || 0, 85);
+            if (player.lifesteal) player.hp = Math.min(player.maxHp, player.hp + finalAmount * player.lifesteal);
+            addFloatingText(enemy.x, enemy.y - enemy.radius, text, textColor);
         }
 
         function damagePlayer(amount) {
-            player.hp -= amount;
+            const mitigation = Math.max(0.7, 1 - (player.armor || 0) * 0.06);
+            player.hp -= amount * mitigation;
             if (player.hp <= 0) gameOver();
         }
 
@@ -1168,7 +1444,7 @@
             if (!enemies[index] || enemies[index].id !== enemy.id) index = enemies.findIndex(item => item.id === enemy.id);
             if (index < 0) return;
             kills++;
-            const points = enemy.score + Math.floor(gameTime / 12);
+            const points = Math.floor((enemy.score + Math.floor(gameTime / 12)) * (1 + (player.luck || 0) * 0.15));
             score += points;
             gems.push({ x: enemy.x, y: enemy.y, radius: enemy.boss ? 8 : 5, value: enemy.xp });
             addFloatingText(enemy.x, enemy.y - enemy.radius - 8, `+${points}`, "#f8fafc");
@@ -1262,7 +1538,32 @@
             drawCenteredHudText("Choose your caster to begin", canvas.width / 2, canvas.height - 58, "bold 18px Segoe UI", "#f7e8c6");
         }
 
+        // Draw the loaded floor texture in world space so it scrolls with the camera.
+        function drawGroundTexture() {
+            if (!groundTextureImage) return false;
+            if (!groundTexturePattern) {
+                const tile = document.createElement("canvas");
+                tile.width = Math.max(64, Math.round(groundTextureImage.naturalWidth * GROUND_TEXTURE_SCALE));
+                tile.height = Math.max(64, Math.round(groundTextureImage.naturalHeight * GROUND_TEXTURE_SCALE));
+                const tileCtx = tile.getContext("2d");
+                if (!tileCtx) return false;
+                tileCtx.drawImage(groundTextureImage, 0, 0, tile.width, tile.height);
+                groundTexturePattern = ctx.createPattern(tile, "repeat");
+            }
+            if (!groundTexturePattern) return false;
+            const margin = 140;
+            const startX = player.x - canvas.width / 2 - margin;
+            const startY = player.y - canvas.height / 2 - margin;
+            ctx.save();
+            ctx.globalAlpha = 0.72;
+            ctx.fillStyle = groundTexturePattern;
+            ctx.fillRect(startX, startY, canvas.width + margin * 2, canvas.height + margin * 2);
+            ctx.restore();
+            return true;
+        }
+
         function drawGrid() {
+            drawGroundTexture();
             drawWorldMagicBackdrop();
             ctx.strokeStyle = "rgba(88, 28, 135, 0.42)";
             ctx.lineWidth = 2;
@@ -1303,14 +1604,17 @@
 
         // UI drawing helpers for the Witch & Warlock PNG overlay.
         function drawWitchHud() {
-            drawHudPanel(16, 14, 214, 76);
+            drawHudPanel(16, 14, 250, 76);
             drawHudIcon("health_icon", 30, 30, 32, 32, "#f43f5e");
             drawHudBar(72, 30, 130, 14, player.hp / player.maxHp, "#dc2626", "#fda4af");
             ctx.fillStyle = "#fff7d6";
             ctx.font = "bold 12px Segoe UI";
             ctx.textAlign = "left";
             ctx.fillText(`${Math.max(0, Math.ceil(player.hp))}/${player.maxHp}`, 74, 61);
-            drawPlayerPortrait(204, 22, 42);
+            ctx.fillStyle = "#d8b4fe";
+            ctx.font = "bold 10px Segoe UI";
+            ctx.fillText(player.characterName || "Caster", 74, 76);
+            drawPlayerPortrait(238, 22, 42);
 
             drawHudPanel(282, 12, 236, 58);
             drawCenteredHudText(formatTime(gameTime), 400, 47, "bold 24px Segoe UI", "#f7e8c6");
@@ -1595,7 +1899,7 @@
             phaseBanner.classList.remove("visible");
             const bestTime = window.ArcadeStorage.setHighScore("survivor", gameTime);
             finalTimeDisplay.innerText = formatTime(gameTime);
-            runSummary.textContent = `Best Time: ${formatTime(bestTime)}\nScore: ${score}\nLevel: ${player.level}\nKills: ${kills}\nPhase Reached: ${phases[currentPhaseIndex].label}`;
+            runSummary.textContent = `Caster: ${player.characterName}\nBest Time: ${formatTime(bestTime)}\nScore: ${score}\nLevel: ${player.level}\nKills: ${kills}\nPhase Reached: ${phases[currentPhaseIndex].label}`;
             overlayScreen.style.display = "block";
             pauseScreen.style.display = "none";
         }
