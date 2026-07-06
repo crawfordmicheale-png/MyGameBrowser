@@ -55,6 +55,15 @@
             font-size: 1.9rem;
         }
 
+        .mini-title-art {
+            width: min(280px, 84%);
+            height: auto;
+            display: block;
+            margin: 0 auto 0.5rem;
+            object-fit: contain;
+            pointer-events: none;
+        }
+
         .mini-copy,
         #shop-copy {
             color: #dbeafe;
@@ -89,12 +98,16 @@
         .shop-buttons button {
             min-height: 48px;
             line-height: 1.25;
+            background-image: linear-gradient(rgba(15, 23, 42, 0.44), rgba(15, 23, 42, 0.44)), url("slot_not_selected.png");
+            background-size: 100% 100%;
+            background-position: center;
         }
 
         .character-buttons button.selected,
         .shop-buttons button.equipped {
             outline: 3px solid #fde68a;
             box-shadow: 0 0 18px rgba(253, 230, 138, 0.45);
+            background-image: linear-gradient(rgba(15, 23, 42, 0.28), rgba(15, 23, 42, 0.28)), url("slot_selected.png");
         }
 
         .shop-buttons button.locked {
@@ -169,6 +182,7 @@
         <div id="toast-message"></div>
 
         <div id="start-screen" class="screen-overlay mini-overlay">
+            <img class="mini-title-art" src="title_banner.png" alt="" aria-hidden="true">
             <h2>Mini World</h2>
             <div class="mini-copy">Choose Theo or Grey, collect shiny tickets, help Biscuit find bones, and visit the tiny shop for cozy styles.</div>
             <div id="start-summary" class="mini-save-summary"></div>
@@ -181,6 +195,7 @@
         </div>
 
         <div id="shop-screen" class="screen-overlay mini-overlay">
+            <img class="mini-title-art" src="title_banner.png" alt="" aria-hidden="true">
             <h2>Tiny Shop</h2>
             <div id="shop-copy"></div>
             <div class="shop-buttons" id="shop-buttons"></div>
@@ -210,6 +225,59 @@
 
         const progressKey = "arcade.progress.mini-world";
         const keys = {};
+        const MINI_ASSETS = {
+            characters: {
+                Theo: {
+                    idle: {
+                        down: ["Theo Idle/Theo_idle_down.png"],
+                        up: ["Theo Idle/Theo_idle_up.png"],
+                        side: ["Theo Idle/Theo_idle_left-right.png"]
+                    },
+                    walk: {
+                        down: ["Theo Walk/Theo_walk_down_1.png", "Theo Walk/Theo_walk_down_2.png"],
+                        up: ["Theo Walk/Theo_walk_up_1.png", "Theo Walk/Theo_walk_up_2.png"],
+                        side: ["Theo Walk/Theo_walk_left-right_1.png", "Theo Walk/Theo_walk_left-right_2.png"]
+                    }
+                },
+                Grey: {
+                    idle: {
+                        down: ["Grey Idle/Grey_idle_down.png"],
+                        up: ["Grey Idle/Grey_idle_up.png"],
+                        side: ["Grey Idle/Grey_idle_left-right.png"]
+                    },
+                    walk: {
+                        down: ["Grey Walk/Grey_walk_down_1.png", "Grey Walk/Grey_walk_down_2.png", "Grey Walk/Grey_walk_down_3.png", "Grey Walk/Grey_walk_down_4.png"],
+                        up: ["Grey Walk/Grey_walk_up_1.png", "Grey Walk/Grey_walk_up_2.png", "Grey Walk/Grey_walk_up_3.png", "Grey Walk/Grey_walk_up_4.png"],
+                        side: ["Grey Walk/Grey_walk_left-right_1.png", "Grey Walk/Grey_walk_left-right_2.png", "Grey Walk/Grey_walk_left-right_3.png", "Grey Walk/Grey_walk_left-right_4.png"]
+                    }
+                }
+            },
+            props: {
+                backpack: "backpack.png",
+                bridge: "bridge_1.png",
+                coin: "coin.png",
+                flowerBush: "flower_bush_1.png",
+                heart: "heart.png",
+                key: "key.png",
+                mailbox: "mailbox.png",
+                mapIcon: "map_icon.png",
+                questNotebook: "quest_notebook.png",
+                ropeFence: "rope_fence.png",
+                star: "star.png",
+                strawberryBush: "strawberry_bush.png",
+                wagon: "wagon.png",
+                woodenBox: "wooden_box.png"
+            },
+            ui: {
+                titleBanner: "title_banner.png",
+                dialogueBox: "dialogue_box.png",
+                slotSelected: "slot_selected.png",
+                slotNotSelected: "slot_not_selected.png",
+                inventory: "inventory_with_empty_slots.png",
+                pauseMenu: "pause_menu_empty_buttons.png"
+            }
+        };
+        const loadedImages = {};
         const coins = [];
         const bones = [];
         const effects = [];
@@ -260,6 +328,37 @@
         document.addEventListener("keydown", event => keys[event.code] = true);
         document.addEventListener("keyup", event => keys[event.code] = false);
 
+        function preloadMiniWorldAssets() {
+            const paths = new Set();
+            Object.values(MINI_ASSETS.characters).forEach(character => {
+                Object.values(character.idle).flat().forEach(path => paths.add(path));
+                Object.values(character.walk).flat().forEach(path => paths.add(path));
+            });
+            Object.values(MINI_ASSETS.props).forEach(path => paths.add(path));
+            Object.values(MINI_ASSETS.ui).forEach(path => paths.add(path));
+
+            return Promise.all(Array.from(paths).map(path => new Promise(resolve => {
+                const image = new Image();
+                image.onload = () => {
+                    loadedImages[path] = image;
+                    resolve({ path, ok: true });
+                };
+                image.onerror = () => {
+                    console.warn(`[Mini World] Missing art asset: ${path}`);
+                    resolve({ path, ok: false });
+                };
+                image.src = path;
+            }))).then(results => {
+                const missing = results.filter(result => !result.ok).length;
+                if (missing) console.warn(`[Mini World] ${missing} art assets failed to load; canvas fallbacks remain active.`);
+                return results;
+            });
+        }
+
+        function getImage(path) {
+            return loadedImages[path] || null;
+        }
+
         function defaultProgress() {
             return {
                 totalTickets: 0,
@@ -294,7 +393,11 @@
                 progress.selectedCharacter = name;
                 saveProgress();
             }
-            if (player) player.name = name;
+            if (player) {
+                player.name = name;
+                player.animTime = 0;
+                player.moving = false;
+            }
             showToast(`${name} is ready!`);
             updateHud();
             updateStartSummary();
@@ -321,7 +424,11 @@
                 x: 104,
                 y: 252,
                 radius: 17,
-                speed: 3.9
+                speed: 3.9,
+                direction: "down",
+                facing: "right",
+                moving: false,
+                animTime: 0
             };
             coins.length = 0;
             bones.length = 0;
@@ -384,6 +491,7 @@
         function update(dt) {
             if (!gameStarted || isPaused || shopScreen.style.display === "block") return;
             movePlayer(dt);
+            updatePlayerAnimation(dt);
             collectItems();
             updateEffects(dt);
             updateToast(dt);
@@ -396,17 +504,36 @@
             if (keys.ArrowRight || keys.KeyD) dx += 1;
             if (keys.ArrowUp || keys.KeyW) dy -= 1;
             if (keys.ArrowDown || keys.KeyS) dy += 1;
-            if (dx === 0 && dy === 0) return;
+            player.moving = dx !== 0 || dy !== 0;
+            if (!player.moving) return;
 
             const length = Math.hypot(dx, dy);
             dx /= length;
             dy /= length;
+            updatePlayerDirection(dx, dy);
 
             const nextX = clamp(player.x + dx * player.speed * dt, player.radius, canvas.width - player.radius);
             const nextY = clamp(player.y + dy * player.speed * dt, player.radius, canvas.height - player.radius);
 
             if (!hitsWall(nextX, player.y, player.radius)) player.x = nextX;
             if (!hitsWall(player.x, nextY, player.radius)) player.y = nextY;
+        }
+
+        function updatePlayerDirection(dx, dy) {
+            if (Math.abs(dx) > Math.abs(dy)) {
+                player.direction = "side";
+                player.facing = dx < 0 ? "left" : "right";
+            } else if (dy < 0) {
+                player.direction = "up";
+            } else {
+                player.direction = "down";
+            }
+        }
+
+        function updatePlayerAnimation(dt) {
+            if (!player) return;
+            if (player.moving) player.animTime += dt * 16.67;
+            else player.animTime = Math.min(player.animTime + dt * 16.67, 240);
         }
 
         function collectItems() {
@@ -685,12 +812,20 @@
 
         function drawWalls() {
             walls.forEach((wall, index) => {
-                if (index < 4) drawBush(wall);
-                else drawToyBlocks(wall);
+                if (index < 4) {
+                    const prop = index % 2 === 0 ? MINI_ASSETS.props.flowerBush : MINI_ASSETS.props.strawberryBush;
+                    if (!drawProp(prop, wall.x + wall.w / 2, wall.y + wall.h / 2, Math.max(wall.w, wall.h) * 1.12)) drawBush(wall);
+                } else {
+                    if (!drawProp(MINI_ASSETS.props.woodenBox, wall.x + wall.w / 2, wall.y + wall.h / 2, Math.max(wall.w, wall.h) * 1.1)) drawToyBlocks(wall);
+                }
             });
         }
 
         function drawDecorations() {
+            drawProp(MINI_ASSETS.props.bridge, 516, 386, 98, { alpha: 0.9 });
+            drawProp(MINI_ASSETS.props.mailbox, 48, 356, 50);
+            drawProp(MINI_ASSETS.props.wagon, 590, 86, 62);
+            drawProp(MINI_ASSETS.props.backpack, 258, 96, 42);
             drawCozyDecorations();
             drawDoghouse(86, 414);
             drawShopStand(704, 102);
@@ -718,6 +853,8 @@
             drawSign(108, 354, "Biscuit Quest", "3 Bones");
             drawSign(362, 62, "Playground", "Hop + Slide");
             drawSign(620, 206, "Coin Trail", "Follow gold");
+            drawProp(MINI_ASSETS.props.ropeFence, 504, 164, 76, { alpha: 0.85 });
+            drawProp(MINI_ASSETS.props.ropeFence, 742, 330, 76, { alpha: 0.85 });
         }
 
         function drawSign(x, y, title, subtitle) {
@@ -740,11 +877,15 @@
         function drawQuestBoard() {
             const found = bones.filter(bone => bone.collected).length;
             ctx.save();
-            ctx.fillStyle = bonesReturned ? "rgba(253, 230, 138, 0.45)" : "rgba(15, 23, 42, 0.38)";
-            ctx.strokeStyle = bonesReturned ? "#fde68a" : "#f97316";
-            ctx.lineWidth = 2;
-            roundedRect(34, 482, 156, 42, 10, true, true);
-            ctx.fillStyle = "#f8fafc";
+            if (drawProp(MINI_ASSETS.props.questNotebook, 112, 504, 82, { alpha: 0.78 })) {
+                ctx.fillStyle = "#0f172a";
+            } else {
+                ctx.fillStyle = bonesReturned ? "rgba(253, 230, 138, 0.45)" : "rgba(15, 23, 42, 0.38)";
+                ctx.strokeStyle = bonesReturned ? "#fde68a" : "#f97316";
+                ctx.lineWidth = 2;
+                roundedRect(34, 482, 156, 42, 10, true, true);
+                ctx.fillStyle = "#f8fafc";
+            }
             ctx.font = "bold 12px Segoe UI";
             ctx.textAlign = "left";
             ctx.fillText(bonesReturned ? "Quest Complete!" : "Biscuit Bones", 48, 499);
@@ -793,6 +934,10 @@
                 ctx.save();
                 ctx.shadowBlur = 12;
                 ctx.shadowColor = "#fde68a";
+                if (drawProp(MINI_ASSETS.props.coin, coin.x, y, coin.radius * 3.1)) {
+                    ctx.restore();
+                    return;
+                }
                 ctx.fillStyle = "#facc15";
                 ctx.beginPath();
                 ctx.arc(coin.x, y, coin.radius, 0, Math.PI * 2);
@@ -851,6 +996,44 @@
             ctx.restore();
         }
 
+        function getPlayerFrame() {
+            if (!player) return null;
+            const set = MINI_ASSETS.characters[player.name] || MINI_ASSETS.characters.Theo;
+            const state = player.moving ? "walk" : "idle";
+            const direction = player.direction || "down";
+            const frames = set[state][direction] || set[state].side || set[state].down;
+            if (!frames || !frames.length) return null;
+            const frameMs = player.moving ? 150 : 520;
+            const index = player.moving ? Math.floor((player.animTime || 0) / frameMs) % frames.length : 0;
+            return getImage(frames[index]) ? { image: getImage(frames[index]), direction } : null;
+        }
+
+        function drawImageCentered(image, x, y, targetHeight, options = {}) {
+            if (!image) return false;
+            const ratio = image.naturalWidth && image.naturalHeight ? image.naturalWidth / image.naturalHeight : 1;
+            const width = targetHeight * ratio;
+            ctx.save();
+            if (options.flipX) {
+                ctx.translate(x, y);
+                ctx.scale(-1, 1);
+                ctx.drawImage(image, -width / 2, -targetHeight / 2, width, targetHeight);
+            } else {
+                ctx.drawImage(image, x - width / 2, y - targetHeight / 2, width, targetHeight);
+            }
+            ctx.restore();
+            return true;
+        }
+
+        function drawProp(path, x, y, size, options = {}) {
+            const image = getImage(path);
+            if (!image) return false;
+            ctx.save();
+            if (options.alpha !== undefined) ctx.globalAlpha = options.alpha;
+            drawImageCentered(image, x, y, size, options);
+            ctx.restore();
+            return true;
+        }
+
         function drawPlayer() {
             if (!player) return;
             const isGrey = player.name === "Grey";
@@ -866,6 +1049,20 @@
                 ctx.beginPath();
                 ctx.arc(player.x, player.y, 34, 0, Math.PI * 2);
                 ctx.fill();
+            }
+            const frame = getPlayerFrame();
+            if (frame) {
+                ctx.shadowBlur = 12;
+                ctx.shadowColor = isGrey ? "#a78bfa" : "#38bdf8";
+                drawImageCentered(frame.image, player.x, player.y - 8, isGrey ? 62 : 68, { flipX: frame.direction === "side" && player.facing === "left" });
+                ctx.shadowBlur = 0;
+                drawPlayerCosmeticOverlay();
+                ctx.fillStyle = "#f8fafc";
+                ctx.font = "bold 12px Segoe UI";
+                ctx.textAlign = "center";
+                ctx.fillText(player.name, player.x, player.y - 42);
+                ctx.restore();
+                return;
             }
             ctx.shadowBlur = 12;
             ctx.shadowColor = isGrey ? "#a78bfa" : "#38bdf8";
@@ -898,6 +1095,14 @@
             ctx.textAlign = "center";
             ctx.fillText(player.name, player.x, player.y - 28);
             ctx.restore();
+        }
+
+        function drawPlayerCosmeticOverlay() {
+            if (selectedCosmetic === "Red Hat") {
+                ctx.fillStyle = "#ef4444";
+                roundedRect(player.x - 12, player.y - 42, 24, 8, 4, true, false);
+                ctx.fillRect(player.x + 5, player.y - 38, 14, 3);
+            }
         }
 
         function drawEffects() {
@@ -1206,15 +1411,21 @@
             shouldHide: () => !gameStarted || isPaused || startScreen.style.display === "block" || shopScreen.style.display === "block"
         });
 
-        progress = readProgress();
-        selectedCharacter = progress.selectedCharacter || "Theo";
-        selectedCosmetic = progress.selectedCosmetic || "None";
-        startScreen.style.display = "block";
-        shopScreen.style.display = "none";
-        setupWorld();
-        gameStarted = false;
-        updateHud();
-        draw();
+        function initMiniWorld() {
+            progress = readProgress();
+            selectedCharacter = progress.selectedCharacter || "Theo";
+            selectedCosmetic = progress.selectedCosmetic || "None";
+            startScreen.style.display = "block";
+            shopScreen.style.display = "none";
+            setupWorld();
+            gameStarted = false;
+            updateHud();
+            draw();
+        }
+
+        preloadMiniWorldAssets()
+            .catch(error => console.warn("[Mini World] Asset preload failed; using canvas fallbacks.", error))
+            .finally(initMiniWorld);
     </script>
 </body>
 </html>
