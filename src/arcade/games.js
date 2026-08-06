@@ -108,6 +108,18 @@
             thumbnail: "\uD83E\uDDF1"
         },
         {
+            id: "circuit-crush",
+            title: "Circuit Crush",
+            description: "Swap neon data chips, match 3+, and trigger overload cascades.",
+            genre: "Puzzle / Match-3",
+            route: "./games/circuit-crush/index.html",
+            highScoreKey: "arcade.highScore.circuit-crush",
+            scoreType: "score",
+            scoreLabel: "Best",
+            status: "Playable",
+            thumbnail: "💠"
+        },
+        {
             id: "pong",
             title: "Cyber Pong",
             description: "Face the AI in a glowing paddle duel.",
