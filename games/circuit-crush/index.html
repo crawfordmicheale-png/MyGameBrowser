@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Circuit Crush</title>
+    <link rel="stylesheet" href="../../src/styles/base.css">
+    <link rel="stylesheet" href="../../src/styles/game-shell.css">
+    <link rel="stylesheet" href="../../src/styles/mobile-controls.css">
+    <style>
+        #score-display {
+            color: #22d3ee;
+            text-shadow: 0 0 10px rgba(34, 211, 238, 0.8);
+        }
+
+        #game-container {
+            transition: transform 0.05s;
+        }
+
+        .stats-bar {
+            display: flex;
+            justify-content: space-between;
+            width: 532px;
+            max-width: 100%;
+            margin-bottom: 10px;
+            gap: 10px;
+        }
+
+        .stat-chip {
+            flex: 1;
+            background: rgba(15, 23, 42, 0.82);
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 8px 12px;
+            text-align: center;
+            font-size: 0.85rem;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+        }
+
+        .stat-chip span {
+            display: block;
+            font-size: 1.35rem;
+            font-weight: bold;
+            margin-top: 2px;
+        }
+
+        .stat-chip.moves { border-color: #22d3ee; }
+        .stat-chip.moves span { color: #22d3ee; text-shadow: 0 0 8px rgba(34, 211, 238, 0.6); }
+        .stat-chip.target { border-color: #c084fc; }
+        .stat-chip.target span { color: #c084fc; text-shadow: 0 0 8px rgba(192, 132, 252, 0.6); }
+
+        #end-summary {
+            color: #cbd5e1;
+            line-height: 1.6;
+            margin-bottom: 1rem;
+            min-width: 220px;
+            white-space: pre-line;
+        }
+
+        h2 { margin: 0 0 1rem 0; font-size: 2rem; }
+    </style>
+</head>
+<body class="game-page">
+
+    <div class="header">
+        <span>CIRCUIT CRUSH</span>
+        <span>SCORE: <span id="score-display">0</span></span>
+    </div>
+
+    <div class="stats-bar">
+        <div class="stat-chip moves">Moves<span id="moves-display">30</span></div>
+        <div class="stat-chip target">Target<span id="target-display">2500</span></div>
+    </div>
+
+    <div id="game-container">
+        <canvas id="gameCanvas" width="532" height="532"></canvas>
+
+        <div id="overlay-screen">
+            <h2 id="end-title">SYSTEM OFFLINE</h2>
+            <div id="end-summary"></div>
+            <button onclick="resetGame()">PLAY AGAIN</button>
+            <button class="lobby-btn" onclick="window.location.href='../../index.html'">BACK TO LOBBY</button>
+        </div>
+    </div>
+
+    <script src="../../src/arcade/storage.js"></script>
+    <script src="../../src/arcade/controls.js"></script>
+    <script src="../../src/arcade/mobileControls.js"></script>
+    <script>
+        const GAME_ID = "circuit-crush";
+        const COLS = 8;
+        const ROWS = 8;
+        const CELL = 64;
+        const PAD = 10;
+
+        const MAX_MOVES = 30;
+        const TARGET = 2500;
+
+        const TYPES = [
+            { color: "#22d3ee", shape: "hex" },       // cyan
+            { color: "#f472b6", shape: "triangle" },  // magenta
+            { color: "#4ade80", shape: "diamond" },   // green
+            { color: "#fbbf24", shape: "square" },    // amber
+            { color: "#c084fc", shape: "circle" },    // purple
+            { color: "#fb7185", shape: "pentagon" }   // red
+        ];
+
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const scoreDisplay = document.getElementById("score-display");
+        const movesDisplay = document.getElementById("moves-display");
+        const targetDisplay = document.getElementById("target-display");
+        const overlayScreen = document.getElementById("overlay-screen");
+        const endTitle = document.getElementById("end-title");
+        const endSummary = document.getElementById("end-summary");
+        const gameContainer = document.getElementById("game-container");
+
+        canvas.style.touchAction = "none";
+        canvas.classList.add("mobile-touch-surface");
+
+        // Game state
+        let board = [];
+        let phase = "input"; // input | swap | swapback | clear | fall | over
+        let score = 0;
+        let moves = MAX_MOVES;
+        let combo = 0;
+        let selected = null;      // { r, c }
+        let swapCells = null;     // [ { r, c }, { r, c } ]
+        let particles = [];
+        let floatingTexts = [];
+        let screenShake = 0;
+        let frame = 0;
+        let isPaused = false;
+        let gameEnded = false;
+        let animId = null;
+
+        // --- geometry helpers ---
+        const centerX = c => PAD + c * CELL + CELL / 2;
+        const centerY = r => PAD + r * CELL + CELL / 2;
+        const key = cell => cell.r + "," + cell.c;
+        const randType = () => Math.floor(Math.random() * TYPES.length);
+
+        function makeTile(type, r, c) {
+            return {
+                type,
+                special: null, // null | "line" | "nova"
+                r, c,
+                x: centerX(c),
+                y: centerY(r),
+                tx: centerX(c),
+                ty: centerY(r),
+                scale: 1,
+                remove: false,
+                removeT: 0
+            };
+        }
+
+        function forEachTile(fn) {
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const t = board[r][c];
+                    if (t) fn(t, r, c);
+                }
+            }
+        }
+
+        function getTypes() {
+            const grid = [];
+            for (let r = 0; r < ROWS; r++) {
+                grid[r] = [];
+                for (let c = 0; c < COLS; c++) {
+                    grid[r][c] = board[r][c] ? board[r][c].type : null;
+                }
+            }
+            return grid;
+        }
+
+        // --- board setup ---
+        function createBoard() {
+            board = [];
+            for (let r = 0; r < ROWS; r++) {
+                board[r] = [];
+                for (let c = 0; c < COLS; c++) {
+                    let type;
+                    do {
+                        type = randType();
+                    } while (
+                        (c >= 2 && board[r][c - 1].type === type && board[r][c - 2].type === type) ||
+                        (r >= 2 && board[r - 1][c].type === type && board[r - 2][c].type === type)
+                    );
+                    board[r][c] = makeTile(type, r, c);
+                }
+            }
+            if (!hasPossibleMove()) createBoard();
+        }
+
+        // --- match detection ---
+        function findRunsInTypes(types) {
+            const runs = [];
+
+            // horizontal
+            for (let r = 0; r < ROWS; r++) {
+                let c = 0;
+                while (c < COLS) {
+                    const t = types[r][c];
+                    let c2 = c;
+                    while (c2 < COLS && types[r][c2] === t) c2++;
+                    if (t != null && c2 - c >= 3) {
+                        const cells = [];
+                        for (let cc = c; cc < c2; cc++) cells.push({ r, c: cc });
+                        runs.push({ cells, len: c2 - c, dir: "h" });
+                    }
+                    c = c2;
+                }
+            }
+
+            // vertical
+            for (let c = 0; c < COLS; c++) {
+                let r = 0;
+                while (r < ROWS) {
+                    const t = types[r][c];
+                    let r2 = r;
+                    while (r2 < ROWS && types[r2][c] === t) r2++;
+                    if (t != null && r2 - r >= 3) {
+                        const cells = [];
+                        for (let rr = r; rr < r2; rr++) cells.push({ r: rr, c });
+                        runs.push({ cells, len: r2 - r, dir: "v" });
+                    }
+                    r = r2;
+                }
+            }
+
+            return runs;
+        }
+
+        function findRuns() {
+            return findRunsInTypes(getTypes());
+        }
+
+        function specialCells(type, r, c) {
+            const cells = [];
+            if (type === "line") {
+                for (let cc = 0; cc < COLS; cc++) cells.push({ r, c: cc });
+                for (let rr = 0; rr < ROWS; rr++) cells.push({ r: rr, c });
+            } else if (type === "nova") {
+                for (let rr = r - 1; rr <= r + 1; rr++) {
+                    for (let cc = c - 1; cc <= c + 1; cc++) {
+                        if (rr >= 0 && rr < ROWS && cc >= 0 && cc < COLS) cells.push({ r: rr, c: cc });
+                    }
+                }
+            }
+            return cells;
+        }
+
+        function chooseSpecialCell(run, swaps) {
+            if (swaps) {
+                for (const cell of run.cells) {
+                    if (swaps.some(s => s.r === cell.r && s.c === cell.c)) return cell;
+                }
+            }
+            return run.cells[Math.floor(run.cells.length / 2)];
+        }
+
+        // Returns true if something was cleared (and moves game into "clear" phase)
+        function resolveMatches(swaps) {
+            const runs = findRuns();
+            if (!runs.length) return false;
+
+            combo++;
+
+            const clear = new Map();
+            const creations = new Map();
+
+            runs.forEach(run => {
+                run.cells.forEach(cell => clear.set(key(cell), cell));
+                if (run.len >= 4) {
+                    const cell = chooseSpecialCell(run, swaps);
+                    const tile = board[cell.r][cell.c];
+                    creations.set(key(cell), {
+                        cell,
+                        special: run.len >= 5 ? "nova" : "line",
+                        type: tile.type
+                    });
+                }
+            });
+
+            // Creation cells survive: they become special instead of clearing.
+            creations.forEach((_, k) => clear.delete(k));
+
+            // Activate any pre-existing special tiles caught in the clear (with chaining).
+            const work = [];
+            clear.forEach(cell => {
+                const t = board[cell.r][cell.c];
+                if (t && t.special) work.push(cell);
+            });
+            const activated = new Set();
+            while (work.length) {
+                const cell = work.pop();
+                const k = key(cell);
+                if (activated.has(k)) continue;
+                activated.add(k);
+                const t = board[cell.r][cell.c];
+                if (!t || !t.special) continue;
+                specialCells(t.special, cell.r, cell.c).forEach(ac => {
+                    const k2 = key(ac);
+                    if (!clear.has(k2)) clear.set(k2, ac);
+                    const at = board[ac.r][ac.c];
+                    if (at && at.special && !activated.has(k2)) work.push(ac);
+                });
+            }
+
+            // Protect freshly created specials from being cleared this step.
+            creations.forEach((_, k) => clear.delete(k));
+
+            // Scoring
+            const cleared = clear.size;
+            const bonus = cleared > 5 ? 1.5 : 1;
+            const points = Math.round(cleared * 20 * combo * bonus);
+            score += points;
+            updateScoreUI();
+
+            // Floating score text at the centroid of the cleared cells.
+            let sx = 0, sy = 0;
+            clear.forEach(cell => { sx += centerX(cell.c); sy += centerY(cell.r); });
+            const label = combo > 1 ? `+${points}  x${combo}` : `+${points}`;
+            addFloatingText(sx / cleared, sy / cleared, label, combo > 1 ? "#fbbf24" : "#22d3ee");
+
+            // Mark cleared tiles for the shrink animation + burst particles.
+            clear.forEach(cell => {
+                const t = board[cell.r][cell.c];
+                if (t) {
+                    t.remove = true;
+                    t.removeT = 0;
+                    spawnParticles(t.x, t.y, TYPES[t.type].color);
+                }
+            });
+
+            // Upgrade surviving tiles into specials.
+            creations.forEach(cr => {
+                const t = board[cr.cell.r][cr.cell.c];
+                if (t) t.special = cr.special;
+            });
+
+            screenShake = Math.max(screenShake, cleared > 5 ? 12 : 6);
+            phase = "clear";
+            return true;
+        }
+
+        // Drop remaining tiles and refill from the top.
+        function compactAndFill() {
+            for (let c = 0; c < COLS; c++) {
+                let writeR = ROWS - 1;
+                for (let r = ROWS - 1; r >= 0; r--) {
+                    const t = board[r][c];
+                    if (t) {
+                        if (r !== writeR) {
+                            board[writeR][c] = t;
+                            board[r][c] = null;
+                        }
+                        t.r = writeR;
+                        t.tx = centerX(c);
+                        t.ty = centerY(writeR);
+                        writeR--;
+                    }
+                }
+                let spawnIndex = 0;
+                for (let r = writeR; r >= 0; r--) {
+                    const t = makeTile(randType(), r, c);
+                    t.x = centerX(c);
+                    t.y = centerY(0) - (spawnIndex + 1) * CELL;
+                    t.tx = centerX(c);
+                    t.ty = centerY(r);
+                    board[r][c] = t;
+                    spawnIndex++;
+                }
+            }
+            phase = "fall";
+        }
+
+        // --- swap logic ---
+        function boardSwap(a, b) {
+            const ta = board[a.r][a.c];
+            const tb = board[b.r][b.c];
+            board[a.r][a.c] = tb;
+            board[b.r][b.c] = ta;
+            tb.r = a.r; tb.c = a.c; tb.tx = centerX(a.c); tb.ty = centerY(a.r);
+            ta.r = b.r; ta.c = b.c; ta.tx = centerX(b.c); ta.ty = centerY(b.r);
+        }
+
+        function attemptSwap(a, b) {
+            boardSwap(a, b);
+            swapCells = [{ r: a.r, c: a.c }, { r: b.r, c: b.c }];
+            selected = null;
+            phase = "swap";
+        }
+
+        // --- move availability ---
+        function hasPossibleMove() {
+            const types = getTypes();
+            const test = (r1, c1, r2, c2) => {
+                const a = types[r1][c1], b = types[r2][c2];
+                types[r1][c1] = b; types[r2][c2] = a;
+                const ok = findRunsInTypes(types).length > 0;
+                types[r1][c1] = a; types[r2][c2] = b;
+                return ok;
+            };
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    if (c + 1 < COLS && test(r, c, r, c + 1)) return true;
+                    if (r + 1 < ROWS && test(r, c, r + 1, c)) return true;
+                }
+            }
+            return false;
+        }
+
+        function reshuffle() {
+            let attempts = 0;
+            do {
+                for (let r = 0; r < ROWS; r++) {
+                    for (let c = 0; c < COLS; c++) {
+                        const t = board[r][c];
+                        let type;
+                        do {
+                            type = randType();
+                        } while (
+                            (c >= 2 && board[r][c - 1].type === type && board[r][c - 2].type === type) ||
+                            (r >= 2 && board[r - 1][c].type === type && board[r - 2][c].type === type)
+                        );
+                        t.type = type;
+                        t.special = null;
+                    }
+                }
+                attempts++;
+            } while (!hasPossibleMove() && attempts < 40);
+            addFloatingText(canvas.width / 2, canvas.height / 2, "GRID RESHUFFLED", "#c084fc");
+        }
+
+        // --- phase transitions ---
+        function onSwapSettled() {
+            if (findRuns().length) {
+                moves--;
+                updateMovesUI();
+                combo = 0;
+                resolveMatches(swapCells);
+            } else {
+                // Invalid move: reverse the swap.
+                const [a, b] = swapCells;
+                boardSwap(a, b);
+                phase = "swapback";
+            }
+        }
+
+        function onClearDone() {
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    if (board[r][c] && board[r][c].remove) board[r][c] = null;
+                }
+            }
+            compactAndFill();
+        }
+
+        function onFallSettled() {
+            if (!resolveMatches(null)) endOfMove();
+        }
+
+        function endOfMove() {
+            combo = 0;
+            swapCells = null;
+            if (!hasPossibleMove()) reshuffle();
+            if (moves <= 0) {
+                endGame();
+            } else {
+                phase = "input";
+            }
+        }
+
+        function endGame() {
+            gameEnded = true;
+            phase = "over";
+            gameContainer.style.transform = "";
+            const won = score >= TARGET;
+            const best = window.ArcadeStorage.setHighScore(GAME_ID, score);
+            const color = won ? "#4ade80" : "#fb7185";
+            endTitle.innerText = won ? "TARGET BREACHED" : "SYSTEM OFFLINE";
+            endTitle.style.color = color;
+            endTitle.style.textShadow = `0 0 12px ${color}`;
+            overlayScreen.style.borderColor = color;
+            overlayScreen.style.boxShadow = `0 0 24px ${color}80`;
+            endSummary.textContent =
+                `${won ? "You cracked the grid." : "Out of moves."}\n` +
+                `Score: ${score}\nTarget: ${TARGET}\nBest: ${best}`;
+            overlayScreen.style.display = "block";
+        }
+
+        // --- animation ---
+        function stepAnim() {
+            let moving = false;
+            forEachTile(t => {
+                t.x += (t.tx - t.x) * 0.28;
+                t.y += (t.ty - t.y) * 0.28;
+                if (Math.abs(t.tx - t.x) > 0.5 || Math.abs(t.ty - t.y) > 0.5) {
+                    moving = true;
+                } else {
+                    t.x = t.tx;
+                    t.y = t.ty;
+                }
+            });
+            return !moving;
+        }
+
+        function addFloatingText(x, y, text, color) {
+            floatingTexts.push({ x, y, text, color, life: 60, vy: -0.7 });
+        }
+
+        function spawnParticles(x, y, color) {
+            for (let i = 0; i < 12; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 1 + Math.random() * 3;
+                particles.push({
+                    x, y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    radius: 2 + Math.random() * 2,
+                    color,
+                    life: 26 + Math.random() * 16
+                });
+            }
+        }
+
+        function updateEffects() {
+            particles = particles.filter(p => p.life > 0);
+            particles.forEach(p => {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.05;
+                p.life--;
+            });
+
+            floatingTexts = floatingTexts.filter(t => t.life > 0);
+            floatingTexts.forEach(t => {
+                t.y += t.vy;
+                t.life--;
+            });
+
+            if (screenShake > 0) {
+                const amount = screenShake * 0.5;
+                const x = (Math.random() - 0.5) * amount;
+                const y = (Math.random() - 0.5) * amount;
+                gameContainer.style.transform = `translate(${x}px, ${y}px)`;
+                screenShake--;
+            } else if (phase !== "over") {
+                gameContainer.style.transform = "";
+            }
+        }
+
+        function update() {
+            if (isPaused || gameEnded) return;
+            frame++;
+
+            switch (phase) {
+                case "swap":
+                    if (stepAnim()) onSwapSettled();
+                    break;
+                case "swapback":
+                    if (stepAnim()) { phase = "input"; swapCells = null; }
+                    break;
+                case "fall":
+                    if (stepAnim()) onFallSettled();
+                    break;
+                case "clear": {
+                    let done = true;
+                    forEachTile(t => {
+                        if (t.remove) {
+                            t.removeT += 0.14;
+                            t.scale = Math.max(0, 1 - t.removeT);
+                            if (t.removeT < 1) done = false;
+                        }
+                    });
+                    if (done) onClearDone();
+                    break;
+                }
+                default:
+                    break;
+            }
+
+            updateEffects();
+        }
+
+        // --- rendering ---
+        function polygonPath(cx, cy, radius, sides, rotation) {
+            ctx.beginPath();
+            for (let i = 0; i < sides; i++) {
+                const angle = rotation + (i / sides) * Math.PI * 2;
+                const x = cx + Math.cos(angle) * radius;
+                const y = cy + Math.sin(angle) * radius;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.closePath();
+        }
+
+        function drawShape(shape, cx, cy, radius, color) {
+            ctx.shadowBlur = 14;
+            ctx.shadowColor = color;
+            ctx.fillStyle = color;
+            const rot = -Math.PI / 2;
+            switch (shape) {
+                case "hex": polygonPath(cx, cy, radius, 6, rot); ctx.fill(); break;
+                case "triangle": polygonPath(cx, cy, radius, 3, rot); ctx.fill(); break;
+                case "diamond": polygonPath(cx, cy, radius, 4, rot); ctx.fill(); break;
+                case "pentagon": polygonPath(cx, cy, radius, 5, rot); ctx.fill(); break;
+                case "circle":
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+                    ctx.fill();
+                    break;
+                case "square":
+                default: {
+                    const s = radius * 1.7;
+                    ctx.fillRect(cx - s / 2, cy - s / 2, s, s);
+                    break;
+                }
+            }
+            // Inner highlight for a glassy chip look.
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = "rgba(255, 255, 255, 0.25)";
+            ctx.beginPath();
+            ctx.arc(cx - radius * 0.28, cy - radius * 0.3, radius * 0.22, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawSpecial(type, cx, cy, radius) {
+            const pulse = 0.5 + 0.5 * Math.sin(frame * 0.15);
+            ctx.save();
+            ctx.shadowBlur = 16;
+            ctx.shadowColor = "#f8fafc";
+            ctx.strokeStyle = `rgba(248, 250, 252, ${0.55 + pulse * 0.45})`;
+            ctx.lineWidth = 2.5;
+            if (type === "line") {
+                ctx.beginPath();
+                ctx.moveTo(cx - radius, cy); ctx.lineTo(cx + radius, cy);
+                ctx.moveTo(cx, cy - radius); ctx.lineTo(cx, cy + radius);
+                ctx.stroke();
+            } else if (type === "nova") {
+                ctx.beginPath();
+                ctx.arc(cx, cy, radius * (0.7 + pulse * 0.25), 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        function draw() {
+            ctx.fillStyle = "#0b1220";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Grid cells
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    ctx.strokeStyle = "rgba(51, 65, 85, 0.5)";
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(PAD + c * CELL + 2, PAD + r * CELL + 2, CELL - 4, CELL - 4);
+                }
+            }
+
+            // Selected highlight
+            if (selected) {
+                ctx.save();
+                ctx.strokeStyle = "#f8fafc";
+                ctx.shadowBlur = 14;
+                ctx.shadowColor = "#22d3ee";
+                ctx.lineWidth = 3;
+                ctx.strokeRect(PAD + selected.c * CELL + 3, PAD + selected.r * CELL + 3, CELL - 6, CELL - 6);
+                ctx.restore();
+            }
+
+            // Tiles
+            forEachTile(t => {
+                const radius = (CELL / 2 - 8) * t.scale;
+                if (radius <= 0.5) return;
+                drawShape(TYPES[t.type].shape, t.x, t.y, radius, TYPES[t.type].color);
+                if (t.special) drawSpecial(t.special, t.x, t.y, CELL / 2 - 6);
+            });
+
+            // Particles
+            particles.forEach(p => {
+                ctx.globalAlpha = Math.max(0, p.life / 42);
+                ctx.shadowBlur = 8;
+                ctx.shadowColor = p.color;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            ctx.globalAlpha = 1;
+
+            // Floating text
+            floatingTexts.forEach(t => {
+                ctx.globalAlpha = Math.max(0, t.life / 60);
+                ctx.shadowBlur = 8;
+                ctx.shadowColor = t.color;
+                ctx.fillStyle = t.color;
+                ctx.font = "bold 20px Segoe UI, sans-serif";
+                ctx.textAlign = "center";
+                ctx.fillText(t.text, t.x, t.y);
+            });
+
+            ctx.globalAlpha = 1;
+            ctx.textAlign = "start";
+            ctx.shadowBlur = 0;
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+            animId = requestAnimationFrame(gameLoop);
+        }
+
+        // --- input ---
+        function cellFromEvent(event) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const px = (event.clientX - rect.left) * scaleX;
+            const py = (event.clientY - rect.top) * scaleY;
+            const c = Math.floor((px - PAD) / CELL);
+            const r = Math.floor((py - PAD) / CELL);
+            if (r < 0 || r >= ROWS || c < 0 || c >= COLS) return null;
+            return { r, c };
+        }
+
+        function handlePointer(event) {
+            if (phase !== "input" || isPaused || gameEnded) return;
+            const cell = cellFromEvent(event);
+            if (!cell) return;
+            event.preventDefault();
+
+            if (!selected) {
+                selected = cell;
+                return;
+            }
+
+            if (selected.r === cell.r && selected.c === cell.c) {
+                selected = null;
+                return;
+            }
+
+            const adjacent = Math.abs(selected.r - cell.r) + Math.abs(selected.c - cell.c) === 1;
+            if (adjacent) {
+                attemptSwap(selected, cell);
+            } else {
+                selected = cell;
+            }
+        }
+
+        canvas.addEventListener("pointerdown", handlePointer);
+
+        // --- UI updates ---
+        function updateScoreUI() { scoreDisplay.innerText = score; }
+        function updateMovesUI() { movesDisplay.innerText = Math.max(0, moves); }
+
+        function resetGame() {
+            if (animId) cancelAnimationFrame(animId);
+            score = 0;
+            moves = MAX_MOVES;
+            combo = 0;
+            selected = null;
+            swapCells = null;
+            particles = [];
+            floatingTexts = [];
+            screenShake = 0;
+            isPaused = false;
+            gameEnded = false;
+            phase = "input";
+            gameContainer.style.transform = "";
+            overlayScreen.style.display = "none";
+            updateScoreUI();
+            updateMovesUI();
+            targetDisplay.innerText = TARGET;
+            createBoard();
+            gameLoop();
+        }
+
+        window.ArcadeControls.init({
+            instructions: [
+                "Click or tap a data chip, then a neighbor, to swap them.",
+                "Line up 3 or more matching chips to clear them for points.",
+                "Cascades chain combos — each chain multiplies your score.",
+                "Match 4 to forge a LINE overload (clears a full row + column).",
+                "Match 5 to forge a NOVA overload (clears a 3x3 blast).",
+                "Beat the target score before you run out of moves. Esc pauses, R restarts, H opens this panel."
+            ],
+            onRestart: resetGame,
+            isPaused: () => isPaused,
+            onPauseToggle: () => {
+                if (gameEnded) return false;
+                isPaused = !isPaused;
+                return isPaused;
+            }
+        });
+
+        // Start
+        targetDisplay.innerText = TARGET;
+        createBoard();
+        gameLoop();
+    </script>
+</body>
+</html>
